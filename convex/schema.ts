@@ -133,4 +133,60 @@ export default defineSchema({
   .index("by_recipient", ["recipientId"])
   .index("by_pair_status", ["pairKey", "status"])
   .index("by_expiresAt", ["expiresAt"]),
+
+  authUsers: defineTable({
+    phoneE164: v.string(),
+    phoneVerifiedAt: v.number(),
+    status: v.union(v.literal("active"), v.literal("blocked"), v.literal("deleted")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    lastLoginAt: v.optional(v.number()),
+  })
+  .index("by_phoneE164", ["phoneE164"])
+  .index("by_status", ["status"]),
+
+  phoneOtpChallenges: defineTable({
+    phoneE164: v.string(),
+    otpCodeHash: v.string(),
+    purpose: v.union(v.literal("signin"), v.literal("signup"), v.literal("reverify")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("verified"),
+      v.literal("expired"),
+      v.literal("failed"),
+      v.literal("consumed")
+    ),
+    attemptCount: v.number(),
+    maxAttempts: v.number(),
+    resendCount: v.number(),
+    expiresAt: v.number(),
+    verifiedAt: v.optional(v.number()),
+    consumedAt: v.optional(v.number()),
+    providerMessageId: v.optional(v.string()),
+    ipAddress: v.optional(v.string()),
+    deviceId: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+  .index("by_phone_createdAt", ["phoneE164", "createdAt"])
+  .index("by_status", ["status"])
+  .index("by_expiresAt", ["expiresAt"]),
+
+  authSessions: defineTable({
+    authUserId: v.id("authUsers"),
+    refreshTokenHash: v.string(),
+    deviceId: v.optional(v.string()),
+    platform: v.optional(v.string()),
+    appVersion: v.optional(v.string()),
+    ipAddress: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    createdAt: v.number(),
+    lastSeenAt: v.optional(v.number()),
+    expiresAt: v.number(),
+    revokedAt: v.optional(v.number()),
+  })
+  .index("by_authUserId", ["authUserId"])
+  .index("by_refreshTokenHash", ["refreshTokenHash"])
+  .index("by_expiresAt", ["expiresAt"])
+  .index("by_revokedAt", ["revokedAt"]),
 });
