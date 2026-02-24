@@ -11,7 +11,7 @@ export const check = query({
       status: "ok",
       timestamp: Date.now(),
       version: "1.0.0",
-      service: "man2man-api",
+      service: "eyymi-api",
     };
   },
 });
