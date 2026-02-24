@@ -1,0 +1,136 @@
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
+
+export default defineSchema({
+  users: defineTable({
+    deviceId: v.string(),
+    username: v.string(),
+    usernameKey: v.optional(v.string()),
+    isOnline: v.boolean(),
+    lastSeen: v.number(),
+  })
+  .index("by_device", ["deviceId"])
+  .index("by_usernameKey", ["usernameKey"])
+  .index("by_lastSeen", ["lastSeen"]),
+
+  locationSessions: defineTable({
+    code: v.string(), // 6 chars: A-Z, 0-9
+    user1Id: v.id("users"),
+    user2Id: v.optional(v.id("users")),
+    status: v.union(
+      v.literal("waiting"), 
+      v.literal("active"), 
+      v.literal("closed")
+    ),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+  .index("by_code", ["code"])
+  .index("by_user1", ["user1Id"])
+  .index("by_user2", ["user2Id"])
+  .index("by_status_createdAt", ["status", "createdAt"])
+  .index("by_expiresAt", ["expiresAt"]),
+
+  locations: defineTable({
+    sessionId: v.id("locationSessions"),
+    userId: v.id("users"),
+    lat: v.number(),
+    lng: v.number(),
+    accuracy: v.optional(v.number()),
+    timestamp: v.number(),
+  })
+  .index("by_session_time", ["sessionId", "timestamp"])
+  .index("by_user", ["userId"]),
+
+  sessionRoutes: defineTable({
+    sessionId: v.id("locationSessions"),
+    routeKey: v.optional(v.string()),
+    routeOwnerUserId: v.optional(v.id("users")),
+    destinationMode: v.optional(
+      v.union(v.literal("partner"), v.literal("meeting_place"))
+    ),
+    destinationPlaceId: v.optional(v.string()),
+    provider: v.union(v.literal("tomtom")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("ready"),
+      v.literal("stale"),
+      v.literal("error")
+    ),
+    polyline: v.optional(
+      v.array(
+        v.object({
+          lat: v.number(),
+          lng: v.number(),
+        })
+      )
+    ),
+    distanceMeters: v.optional(v.number()),
+    durationSeconds: v.optional(v.number()),
+    trafficDurationSeconds: v.optional(v.number()),
+    computedAt: v.number(),
+    expiresAt: v.number(),
+    origin: v.object({
+      lat: v.number(),
+      lng: v.number(),
+      accuracy: v.optional(v.number()),
+      timestamp: v.number(),
+    }),
+    destination: v.object({
+      lat: v.number(),
+      lng: v.number(),
+      accuracy: v.optional(v.number()),
+      timestamp: v.number(),
+    }),
+    geometryHash: v.optional(v.string()),
+    lastError: v.optional(v.string()),
+    errorAt: v.optional(v.number()),
+    lockToken: v.optional(v.string()),
+    lockExpiresAt: v.optional(v.number()),
+    lastRequestedAt: v.optional(v.number()),
+  })
+  .index("by_session_routeKey", ["sessionId", "routeKey"])
+  .index("by_sessionId", ["sessionId"])
+  .index("by_expiresAt", ["expiresAt"]),
+
+  sessionMeetingPlaces: defineTable({
+    sessionId: v.id("locationSessions"),
+    status: v.union(v.literal("set"), v.literal("removal_requested")),
+    place: v.object({
+      name: v.string(),
+      lat: v.number(),
+      lng: v.number(),
+      address: v.optional(v.string()),
+      providerPlaceId: v.optional(v.string()),
+    }),
+    setByUserId: v.id("users"),
+    removalRequestedBy: v.optional(v.id("users")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    removalRequestExpiresAt: v.optional(v.number()),
+  })
+  .index("by_sessionId", ["sessionId"])
+  .index("by_removalRequestExpiresAt", ["removalRequestExpiresAt"]),
+
+  sessionInvites: defineTable({
+    requesterId: v.id("users"),
+    recipientId: v.id("users"),
+    pairKey: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("declined"),
+      v.literal("cancelled"),
+      v.literal("expired")
+    ),
+    sessionId: v.optional(v.id("locationSessions")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    expiresAt: v.number(),
+    respondedAt: v.optional(v.number()),
+  })
+  .index("by_requester", ["requesterId"])
+  .index("by_recipient", ["recipientId"])
+  .index("by_pair_status", ["pairKey", "status"])
+  .index("by_expiresAt", ["expiresAt"]),
+});
