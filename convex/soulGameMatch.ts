@@ -292,6 +292,9 @@ export const getClientState = query({
       .collect();
     const freshActiveQueueEntries = activeQueueEntries.filter((entry) => isQueueEntryActive(entry, now));
     const freshAvailableQueueEntries = freshActiveQueueEntries.filter((entry) => !entry.activeMatchId);
+    const availableQueueById = new Map(
+      freshAvailableQueueEntries.map((entry) => [String(entry._id), entry] as const),
+    );
 
     const candidates = freshAvailableQueueEntries
       .filter((entry) => !args.queueEntryId || entry._id !== args.queueEntryId)
@@ -304,6 +307,32 @@ export const getClientState = query({
         joinedAt: entry.joinedAt,
         lastHeartbeatAt: entry.lastHeartbeatAt,
       }));
+
+    const pendingPressesForSignals = await ctx.db
+      .query("soulGamePressEvents")
+      .withIndex("by_status_startedAt", (q) => q.eq("status", "pending"))
+      .collect();
+
+    const activeCandidateHoldsByQueueId = new Map<
+      string,
+      { queueEntryId: Id<"soulGameQueue">; holdDurationMs: number; pressStartedAt: number }
+    >();
+
+    for (const press of pendingPressesForSignals) {
+      if (press.pressEndedAt !== undefined) continue;
+      const queueEntry = availableQueueById.get(String(press.queueEntryId));
+      if (!queueEntry) continue;
+
+      const holdDurationMs = Math.max(0, now - press.pressStartedAt);
+      const existing = activeCandidateHoldsByQueueId.get(String(press.queueEntryId));
+      if (!existing || press.pressStartedAt > existing.pressStartedAt) {
+        activeCandidateHoldsByQueueId.set(String(press.queueEntryId), {
+          queueEntryId: press.queueEntryId,
+          holdDurationMs,
+          pressStartedAt: press.pressStartedAt,
+        });
+      }
+    }
 
     let match = queue ? await findCurrentMatchForQueueEntry(ctx, queue._id) : null;
     let session = match?.sessionId ? await ctx.db.get(match.sessionId) : null;
@@ -321,6 +350,18 @@ export const getClientState = query({
       partnerQueue = await ctx.db.get(partnerQueueId);
     }
 
+    let partnerMatchedPressDurationMs: number | null = null;
+    if (match && queue) {
+      const partnerPressEventId =
+        match.userAQueueEntryId === queue._id ? match.userBPressEventId : match.userAPressEventId;
+      const partnerPress = await ctx.db.get(partnerPressEventId);
+      if (partnerPress?.durationMs !== undefined) {
+        partnerMatchedPressDurationMs = partnerPress.durationMs;
+      } else if (partnerPress && partnerPress.pressEndedAt === undefined) {
+        partnerMatchedPressDurationMs = Math.max(0, now - partnerPress.pressStartedAt);
+      }
+    }
+
     return {
       serverNow: now,
       queueSnapshot: {
@@ -336,6 +377,13 @@ export const getClientState = query({
               : "queued"
           : "inactive",
       },
+      activeCandidateHolds: [...activeCandidateHoldsByQueueId.values()]
+        .sort((a, b) => b.holdDurationMs - a.holdDurationMs)
+        .map((hold) => ({
+          queueEntryId: hold.queueEntryId,
+          holdDurationMs: hold.holdDurationMs,
+          pressStartedAt: hold.pressStartedAt,
+        })),
       activePress: queue ? await getLatestPendingPressForQueueEntry(ctx, queue._id) : null,
       matchSnapshot: match
         ? {
@@ -348,6 +396,7 @@ export const getClientState = query({
             createdAt: match.createdAt,
             status: effectiveMatchStatus ?? match.status,
             conversationEndsAt: match.conversationEndsAt ?? null,
+            partnerPressDurationMs: partnerMatchedPressDurationMs,
           }
         : null,
       session: match && session
@@ -362,6 +411,7 @@ export const getClientState = query({
             createdAt: match.createdAt,
             conversationEndsAt: match.conversationEndsAt ?? session.endsAt,
             effectiveSessionStatus,
+            partnerPressDurationMs: partnerMatchedPressDurationMs,
           }
         : null,
     };
