@@ -229,14 +229,14 @@ describe("soul game overlap logic", () => {
     const selected = selectSoulGameMatchCandidate({
       currentQueueEntryId: "queue-a",
       currentPressEventId: "press-a",
-      currentInterval: { start: 10_000, end: 10_900 },
-      currentDurationMs: 900,
+      currentInterval: { start: 10_000, end: 12_500 },
+      currentDurationMs: 2_500,
       candidates: [
         {
           queueEntryId: "queue-b",
           pressEventId: "press-b",
-          interval: { start: 10_300, end: 11_100 },
-          durationMs: 800,
+          interval: { start: 10_300, end: 12_700 },
+          durationMs: 2_400,
           isQueueActive: true,
           hasActiveMatch: false,
           createdAt: 10_300,
@@ -246,21 +246,21 @@ describe("soul game overlap logic", () => {
 
     expect(selected).not.toBeNull();
     expect(selected?.candidateQueueEntryId).toBe("queue-b");
-    expect(selected?.overlap.overlapMs).toBe(600);
+    expect(selected?.overlap.overlapMs).toBe(2200);
   });
 
   it("skips stale/already-matched/invalid candidates and picks next eligible one", () => {
     const selected = selectSoulGameMatchCandidate({
       currentQueueEntryId: "queue-a",
       currentPressEventId: "press-a",
-      currentInterval: { start: 10_000, end: 10_900 },
-      currentDurationMs: 900,
+      currentInterval: { start: 10_000, end: 12_600 },
+      currentDurationMs: 2_600,
       candidates: [
         {
           queueEntryId: "queue-stale",
           pressEventId: "press-stale",
-          interval: { start: 10_200, end: 10_800 },
-          durationMs: 600,
+          interval: { start: 10_200, end: 12_300 },
+          durationMs: 2_100,
           isQueueActive: false,
           hasActiveMatch: false,
           createdAt: 10_500,
@@ -268,8 +268,8 @@ describe("soul game overlap logic", () => {
         {
           queueEntryId: "queue-busy",
           pressEventId: "press-busy",
-          interval: { start: 10_150, end: 10_850 },
-          durationMs: 700,
+          interval: { start: 10_150, end: 12_650 },
+          durationMs: 2_500,
           isQueueActive: true,
           hasActiveMatch: true,
           createdAt: 10_400,
@@ -277,8 +277,8 @@ describe("soul game overlap logic", () => {
         {
           queueEntryId: "queue-good",
           pressEventId: "press-good",
-          interval: { start: 10_250, end: 11_000 },
-          durationMs: 750,
+          interval: { start: 10_250, end: 12_800 },
+          durationMs: 2_550,
           isQueueActive: true,
           hasActiveMatch: false,
           createdAt: 10_300,
@@ -294,14 +294,14 @@ describe("soul game overlap logic", () => {
     const selected = selectSoulGameMatchCandidate({
       currentQueueEntryId: "queue-a",
       currentPressEventId: "press-a",
-      currentInterval: { start: 1_000, end: 2_000 },
-      currentDurationMs: 1_000,
+      currentInterval: { start: 1_000, end: 3_500 },
+      currentDurationMs: 2_500,
       candidates: [
         {
           queueEntryId: "queue-older",
           pressEventId: "press-older",
-          interval: { start: 1_200, end: 2_200 },
-          durationMs: 1_000,
+          interval: { start: 1_200, end: 3_600 },
+          durationMs: 2_400,
           isQueueActive: true,
           hasActiveMatch: false,
           createdAt: 1_200,
@@ -309,8 +309,8 @@ describe("soul game overlap logic", () => {
         {
           queueEntryId: "queue-newer",
           pressEventId: "press-newer",
-          interval: { start: 1_300, end: 2_300 },
-          durationMs: 1_000,
+          interval: { start: 1_300, end: 3_700 },
+          durationMs: 2_400,
           isQueueActive: true,
           hasActiveMatch: false,
           createdAt: 1_300,
@@ -330,11 +330,11 @@ describe("soul game overlap logic", () => {
     const bStart = flow.pressStart("queue-b", 10_250);
     expect(aStart.ok && bStart.ok).toBe(true);
 
-    const aEnd = flow.pressEnd("queue-a", aStart.ok ? aStart.pressEventId : "", 10_900);
+    const aEnd = flow.pressEnd("queue-a", aStart.ok ? aStart.pressEventId : "", 12_400);
     expect(aEnd.ok).toBe(true);
     expect(aEnd.matched).toBe(false);
 
-    const bEnd = flow.pressEnd("queue-b", bStart.ok ? bStart.pressEventId : "", 11_000);
+    const bEnd = flow.pressEnd("queue-b", bStart.ok ? bStart.pressEventId : "", 12_500);
     expect(bEnd.ok).toBe(true);
     expect(bEnd.matched).toBe(true);
     expect(bEnd.overlapMs).toBeGreaterThanOrEqual(SOUL_GAME_CONFIG.MIN_OVERLAP_MS);
@@ -362,7 +362,7 @@ describe("soul game overlap logic", () => {
     expect(shortEnd.matched).toBe(false);
     expect(shortEnd.reason).toBe("min_hold");
 
-    const bEnd = flow.pressEnd("queue-b", bStart.ok ? bStart.pressEventId : "", 2_800);
+    const bEnd = flow.pressEnd("queue-b", bStart.ok ? bStart.pressEventId : "", 4_800);
     expect(bEnd.ok).toBe(true);
     expect(bEnd.matched).toBe(false);
 

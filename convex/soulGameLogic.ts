@@ -8,7 +8,7 @@ export interface SoulGameConfig {
 }
 
 export const SOUL_GAME_CONFIG: SoulGameConfig = {
-  MIN_HOLD_MS: 600,
+  MIN_HOLD_MS: 2000,
   MIN_OVERLAP_MS: 350,
   MAX_PRESS_DURATION_MS: 6000,
   QUEUE_STALE_AFTER_MS: 45_000,
