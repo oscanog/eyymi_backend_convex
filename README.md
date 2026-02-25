@@ -1,3 +1,27 @@
+## HOW TO SETUP (START HERE - EYYMI Convex Backend / `eyymi_backend_convex`)
+
+Friendly step-by-step for your colleague after cloning:
+
+1. Clone the repo and open it in terminal:
+   - `cd eyymi_backend_convex`
+2. Install dependencies:
+   - `npm install`
+3. Create `.env.local` in the repo root:
+   - I already sent the correct `.env.local` values by email (copy those values here).
+4. Sign in to Convex (first time on a new machine):
+   - `npx convex login`
+5. Generate Convex types/functions metadata:
+   - `npm run codegen`
+6. Start the backend dev worker (optional for local iteration):
+   - `npm run dev`
+7. Recommended checks before pushing changes:
+   - `npm run typecheck`
+   - `npm run test`
+
+Notes:
+- Make sure the frontend repo (`eyymi_tanstack`) uses the same Convex deployment URL in its `.env.local`.
+- Do not commit `.env.local` to git.
+
 # Soul-First Social App Blueprint (iOS + Android)
 
 Planning docs for building a cross-platform mobile app focused on anonymous connection, friend-making, voice interaction, matching, community moments, avatars, and virtual gifting.
@@ -48,4 +72,3 @@ Summary:
 ## Suggested Next Step
 
 Use the finalized visual system in `docs/color-schemes.md`, then narrow the blueprint into a sprint-ready implementation backlog.
-
