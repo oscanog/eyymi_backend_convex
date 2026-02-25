@@ -27,40 +27,25 @@ These are the minimum questions needed to tighten scope. The blueprint in `docs/
 - Gifts + IAP are post-MVP unless budget allows
 - Primary stack recommendation: Flutter + NestJS + PostgreSQL
 
-## Color Scheme Choices (Pick 1)
+## Final Visual System (Locked)
 
-Full token sets are in `docs/color-schemes.md`.
+The color and typography system is finalized.
 
-### Option A: `Sunset Pop` (Warm, playful, social)
-- Primary: `#FF5A5F`
-- Secondary: `#FFB703`
-- Accent: `#6C63FF`
-- Background: `#FFF8F2`
-- Text: `#1E1B18`
-- Best for: energetic, expressive, youthful vibe
+Full token guidance is in `docs/color-schemes.md`.
 
-### Option B: `Aurora Mint` (Fresh, trust-building, modern)
-- Primary: `#14B8A6`
-- Secondary: `#0EA5E9`
-- Accent: `#F97316`
-- Background: `#F6FFFE`
-- Text: `#102A2A`
-- Best for: balanced social + safety-forward brand
+Summary:
 
-### Option C: `Midnight Neon` (Bold, nightlife, voice-heavy)
-- Primary: `#00E5A8`
-- Secondary: `#1D4ED8`
-- Accent: `#FF4DA6`
-- Background: `#090C12`
-- Text: `#EAF2FF`
-- Best for: premium, edgy, late-night interaction feel
+- Dual theme: dark + light mode
+- Minimal graphite neutrals for most surfaces
+- EYYMI mint accent for primary actions and identity
+- Android-style typography sizing for mobile-first UI
 
 ## Docs Index
 
-- `docs/mobile-app-build-blueprint.md` — Complete build blueprint from idea to scale
-- `docs/color-schemes.md` — 3 UI color system options with token-ready palettes
+- `docs/mobile-app-build-blueprint.md` - Complete build blueprint from idea to scale
+- `docs/color-schemes.md` - Final dual-theme color + typography token system
 
 ## Suggested Next Step
 
-Choose a color scheme (`A`, `B`, or `C`). After that, the blueprint can be narrowed into a sprint-ready implementation backlog.
+Use the finalized visual system in `docs/color-schemes.md`, then narrow the blueprint into a sprint-ready implementation backlog.
 

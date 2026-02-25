@@ -985,37 +985,46 @@ Recommended secret storage
 
 ### 5.2 Design System Tokens (Colors, Typography, Spacing)
 
-Selected visual direction: `Aurora Mint + Midnight Neon` (custom scheme).
+Selected visual direction: minimal dual-theme UI (graphite neutrals + EYYMI mint accent).
 
 Use this as the default design system palette unless the team confirms a different scheme during visual exploration.
 
-#### Color Tokens (Aurora Mint + Midnight Neon)
+#### Color Tokens (Final Dual Theme)
 
-- `primary`: `#57F2C2` (Aurora Mint)
-- `secondary`: `#14B8A6` (Deep Mint Teal)
-- `accent`: `#7C5CFF` (Neon Violet accent, use sparingly)
-- `bg`: `#070B14` (Midnight Neon base)
-- `surface`: `#101827` (Elevated dark surface)
-- `text`: `#EAFBF6` (High-contrast mint-tinted white)
-- `border`: `#22304A` (Low-contrast cool border)
+- `primary`: `#14B8A6` (EYYMI mint)
+- `primaryPressed`: `#0F766E`
+- `bgDark`: `#0F1012` (dark canvas)
+- `surfaceDark`: `#17181B` (dark surface)
+- `elevatedDark`: `#1F2024`
+- `textDark`: `#F5F5F5`
+- `borderDark`: `rgba(255,255,255,0.10)`
+- `bgLight`: `#F5F5F5` (light canvas)
+- `surfaceLight`: `#FFFFFF` (light surface)
+- `elevatedLight`: `#ECECEF`
+- `textLight`: `#141417`
+- `borderLight`: `rgba(20,20,23,0.10)`
 - `success`: `#22C55E`
 - `warning`: `#F59E0B`
 - `error`: `#EF4444`
+- `info`: `#8EA3FF` (secondary route/partner visual)
 
 Usage notes:
-- Keep `Aurora Mint` for primary actions, active states, and progress indicators.
-- Reserve neon accents for highlights (match success, voice active pulse, limited CTA emphasis).
-- Verify contrast on `bg` and `surface` combinations before final UI sign-off.
+- Keep mint for primary actions, active states, and progress indicators.
+- Keep surfaces mostly neutral in both themes.
+- Use the `info` accent sparingly for secondary route/partner visuals.
+- Verify contrast for both dark and light mode before final UI sign-off.
 
 #### Recommended Token Structure
 
 - Color: `primary`, `secondary`, `accent`, `bg`, `surface`, `text`, `border`, `success`, `warning`, `error`
-- Typography:
-  - Display (`28-32`)
-  - Title (`20-24`)
-  - Body (`14-16`)
-  - Caption (`12`)
-  - Button (`14-16`, semibold)
+- Typography (Android-like mobile sizing):
+  - Label Small (`11`)
+  - Label Medium (`12`)
+  - Body Medium (`14`)
+  - Body Large (`16`)
+  - Title Large (`22`)
+  - Headline Small (`24`)
+  - Headline Medium (`28`)
 - Spacing scale: `4, 8, 12, 16, 20, 24, 32, 40, 48`
 - Radius scale: `8, 12, 16, 24, pill`
 - Elevation: `sm, md, lg`
@@ -1023,7 +1032,7 @@ Usage notes:
 
 #### Typography Guidance
 
-- Use a readable, character-supportive font pair for multilingual support.
+- Use a readable, character-supportive font stack for multilingual support.
 - Prefer one primary typeface plus fallback for localization (Latin + target scripts).
 - Avoid overly thin weights in low-end Android rendering.
 
@@ -1839,7 +1848,7 @@ Legend: `S` = Small, `M` = Medium, `L` = Large
 
 ## Practical Next Steps (Recommended)
 
-1. Confirm `Aurora Mint + Midnight Neon` as the final blueprint color scheme (or provide a replacement direction before UI production starts).
+1. Use the finalized dual-theme design system (graphite neutrals + EYYMI mint accent) across UI production.
 2. Answer the 8 tailoring questions at the top of this document.
 3. Freeze MVP scope using section `13.1`.
 4. Convert P0 features into a sprint backlog with point estimates.

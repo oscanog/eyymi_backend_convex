@@ -7,13 +7,29 @@ const OTP_MAX_ATTEMPTS = 5;
 const OTP_RESEND_COOLDOWN_MS = 30 * 1000;
 const AUTH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const DEV_FAKE_PHONE_E164 = "+639948235631";
+const PROD_DEPLOYMENT_NAMES = new Set(["tacit-woodpecker-977"]);
 
 type OtpPurpose = "signin" | "signup" | "reverify";
 
-function isDevOtpMode(): boolean {
-  const deployment = process.env.CONVEX_DEPLOYMENT ?? "";
-  if (deployment.startsWith("dev:")) return true;
-  return (process.env.NODE_ENV ?? "").toLowerCase() !== "production";
+function readBooleanEnv(name: string): boolean {
+  const raw = (process.env[name] ?? "").trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
+function shouldDebugLogOtpCodes(): boolean {
+  // Explicit flag only. Set this in Convex *dev* deployment env vars, never in prod.
+  const debugRequested = readBooleanEnv("OTP_DEBUG_LOG_CODES");
+  if (!debugRequested) return false;
+
+  const deploymentName = (process.env.CONVEX_DEPLOYMENT ?? "").trim();
+  if (PROD_DEPLOYMENT_NAMES.has(deploymentName)) {
+    console.warn("[otp] OTP_DEBUG_LOG_CODES ignored for production deployment", {
+      deploymentName,
+    });
+    return false;
+  }
+
+  return true;
 }
 
 function normalizePhoneInput(raw: string): string {
@@ -128,7 +144,7 @@ export const requestCode = mutation({
       .withIndex("by_phoneE164", (q) => q.eq("phoneE164", phoneE164))
       .first();
 
-    if (isDevOtpMode()) {
+    if (shouldDebugLogOtpCodes()) {
       // DEV ONLY: log OTP for local testing. Never log OTP codes in production.
       console.info("[otp.dev] challenge_created", {
         phoneE164,
