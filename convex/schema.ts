@@ -189,4 +189,84 @@ export default defineSchema({
   .index("by_refreshTokenHash", ["refreshTokenHash"])
   .index("by_expiresAt", ["expiresAt"])
   .index("by_revokedAt", ["revokedAt"]),
+
+  soulGameQueue: defineTable({
+    participantKey: v.string(),
+    authUserId: v.optional(v.string()),
+    profileUserId: v.optional(v.string()),
+    username: v.optional(v.string()),
+    avatarId: v.optional(v.string()),
+    isActive: v.boolean(),
+    queueStatus: v.union(
+      v.literal("queued"),
+      v.literal("matching"),
+      v.literal("matched")
+    ),
+    activeMatchId: v.optional(v.id("soulGameMatches")),
+    joinedAt: v.number(),
+    lastHeartbeatAt: v.number(),
+    lastPressAt: v.optional(v.number()),
+  })
+  .index("by_participantKey", ["participantKey"])
+  .index("by_isActive_lastHeartbeatAt", ["isActive", "lastHeartbeatAt"])
+  .index("by_activeMatchId", ["activeMatchId"]),
+
+  soulGamePressEvents: defineTable({
+    queueEntryId: v.id("soulGameQueue"),
+    participantKey: v.string(),
+    pressStartedAt: v.number(),
+    pressEndedAt: v.optional(v.number()),
+    durationMs: v.optional(v.number()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("matched"),
+      v.literal("expired"),
+      v.literal("cancelled")
+    ),
+    matchId: v.optional(v.id("soulGameMatches")),
+    createdAt: v.number(),
+  })
+  .index("by_queueEntry_status", ["queueEntryId", "status"])
+  .index("by_status_startedAt", ["status", "pressStartedAt"])
+  .index("by_matchId", ["matchId"]),
+
+  soulGameMatches: defineTable({
+    userAQueueEntryId: v.id("soulGameQueue"),
+    userBQueueEntryId: v.id("soulGameQueue"),
+    userAPressEventId: v.id("soulGamePressEvents"),
+    userBPressEventId: v.id("soulGamePressEvents"),
+    matchWindowStart: v.number(),
+    matchWindowEnd: v.number(),
+    overlapMs: v.number(),
+    createdAt: v.number(),
+    status: v.union(
+      v.literal("pending_intro"),
+      v.literal("active_2min"),
+      v.literal("ended"),
+      v.literal("cancelled")
+    ),
+    conversationEndsAt: v.optional(v.number()),
+    sessionId: v.optional(v.id("soulGameSessions")),
+  })
+  .index("by_status_createdAt", ["status", "createdAt"])
+  .index("by_userAQueueEntryId", ["userAQueueEntryId"])
+  .index("by_userBQueueEntryId", ["userBQueueEntryId"])
+  .index("by_conversationEndsAt", ["conversationEndsAt"]),
+
+  soulGameSessions: defineTable({
+    matchId: v.id("soulGameMatches"),
+    userAQueueEntryId: v.id("soulGameQueue"),
+    userBQueueEntryId: v.id("soulGameQueue"),
+    startedAt: v.number(),
+    endsAt: v.number(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("ended"),
+      v.literal("cancelled")
+    ),
+  })
+  .index("by_matchId", ["matchId"])
+  .index("by_endsAt", ["endsAt"])
+  .index("by_userAQueueEntryId", ["userAQueueEntryId"])
+  .index("by_userBQueueEntryId", ["userBQueueEntryId"]),
 });

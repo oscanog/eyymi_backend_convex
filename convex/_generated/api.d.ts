@@ -18,6 +18,10 @@ import type * as locations from "../locations.js";
 import type * as meetingPlaces from "../meetingPlaces.js";
 import type * as routes from "../routes.js";
 import type * as sessions from "../sessions.js";
+import type * as soulGameLogic from "../soulGameLogic.js";
+import type * as soulGameMatch from "../soulGameMatch.js";
+import type * as soulGamePresence from "../soulGamePresence.js";
+import type * as soulGameSessions from "../soulGameSessions.js";
 import type * as users from "../users.js";
 
 import type {
@@ -37,6 +41,10 @@ declare const fullApi: ApiFromModules<{
   meetingPlaces: typeof meetingPlaces;
   routes: typeof routes;
   sessions: typeof sessions;
+  soulGameLogic: typeof soulGameLogic;
+  soulGameMatch: typeof soulGameMatch;
+  soulGamePresence: typeof soulGamePresence;
+  soulGameSessions: typeof soulGameSessions;
   users: typeof users;
 }>;
 
