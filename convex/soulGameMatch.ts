@@ -290,9 +290,9 @@ export const getClientState = query({
       .query("soulGameQueue")
       .withIndex("by_isActive_lastHeartbeatAt", (q) => q.eq("isActive", true))
       .collect();
+    const freshActiveQueueEntries = activeQueueEntries.filter((entry) => isQueueEntryActive(entry, now));
 
-    const candidates = activeQueueEntries
-      .filter((entry) => isQueueEntryActive(entry, now))
+    const candidates = freshActiveQueueEntries
       .filter((entry) => !args.queueEntryId || entry._id !== args.queueEntryId)
       .sort((a, b) => b.lastHeartbeatAt - a.lastHeartbeatAt)
       .slice(0, 12)
@@ -325,8 +325,8 @@ export const getClientState = query({
       queueSnapshot: {
         self: sanitizeQueueView(queue),
         onlineCandidates: candidates,
-        queueCount: activeQueueEntries.filter((entry) => isQueueEntryActive(entry, now)).length,
-        estimatedWaitMs: activeQueueEntries.length > 1 ? 10_000 : undefined,
+        queueCount: freshActiveQueueEntries.length,
+        estimatedWaitMs: freshActiveQueueEntries.length > 1 ? 10_000 : undefined,
         status: queue
           ? queue.activeMatchId
             ? "matched"
