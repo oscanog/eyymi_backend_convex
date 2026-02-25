@@ -97,6 +97,12 @@ function normalizeOtpPurpose(purpose: OtpPurpose): OtpPurpose {
   throw new ConvexError("Invalid OTP purpose");
 }
 
+function canUseExistingAccountForSignup(status: "active" | "blocked" | "deleted"): boolean {
+  // Keep signup strict for active/blocked accounts. Deleted accounts can be re-created/recovered later
+  // under a dedicated recovery flow instead of the regular signup path.
+  return status === "deleted";
+}
+
 export const requestCode = mutation({
   args: {
     phone: v.string(),
@@ -143,6 +149,18 @@ export const requestCode = mutation({
       .query("authUsers")
       .withIndex("by_phoneE164", (q) => q.eq("phoneE164", phoneE164))
       .first();
+
+    if (purpose === "signin" && !existingUser) {
+      throw new ConvexError("No account found for this phone number. Please sign up first.");
+    }
+
+    if (
+      purpose === "signup" &&
+      existingUser &&
+      !canUseExistingAccountForSignup(existingUser.status)
+    ) {
+      throw new ConvexError("This phone number is already registered. Please sign in instead.");
+    }
 
     if (shouldDebugLogOtpCodes()) {
       // DEV ONLY: log OTP for local testing. Never log OTP codes in production.
@@ -227,6 +245,19 @@ export const verifyCode = mutation({
       .query("authUsers")
       .withIndex("by_phoneE164", (q) => q.eq("phoneE164", challenge.phoneE164))
       .first();
+
+    if (challenge.purpose === "signin" && !authUser) {
+      throw new ConvexError("No account found for this phone number. Please sign up first.");
+    }
+
+    if (
+      challenge.purpose === "signup" &&
+      authUser &&
+      !canUseExistingAccountForSignup(authUser.status)
+    ) {
+      throw new ConvexError("This phone number is already registered. Please sign in instead.");
+    }
+
     const isNewUser = !authUser;
 
     if (!authUser) {
