@@ -269,4 +269,26 @@ export default defineSchema({
   .index("by_endsAt", ["endsAt"])
   .index("by_userAQueueEntryId", ["userAQueueEntryId"])
   .index("by_userBQueueEntryId", ["userBQueueEntryId"]),
+
+  // Ephemeral relay for Soul Game chat. These rows are short-lived and can be pruned.
+  soulGameChatMessages: defineTable({
+    sessionId: v.id("soulGameSessions"),
+    senderQueueEntryId: v.id("soulGameQueue"),
+    body: v.string(),
+    clientMessageId: v.optional(v.string()),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+  .index("by_sessionId_createdAt", ["sessionId", "createdAt"])
+  .index("by_expiresAt", ["expiresAt"]),
+
+  soulGameChatTyping: defineTable({
+    sessionId: v.id("soulGameSessions"),
+    queueEntryId: v.id("soulGameQueue"),
+    isTyping: v.boolean(),
+    updatedAt: v.number(),
+    expiresAt: v.number(),
+  })
+  .index("by_sessionId_queueEntryId", ["sessionId", "queueEntryId"])
+  .index("by_expiresAt", ["expiresAt"]),
 });
