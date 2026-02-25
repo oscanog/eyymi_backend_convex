@@ -21,6 +21,17 @@ export interface PressInterval {
   end: number;
 }
 
+export interface MatchCandidateInput {
+  queueEntryId: string;
+  pressEventId: string;
+  interval: PressInterval;
+  durationMs: number;
+  isQueueActive: boolean;
+  hasActiveMatch: boolean;
+  isAlreadyMatchedPress?: boolean;
+  createdAt?: number;
+}
+
 export function clampPressEnd(start: number, end: number, maxDurationMs = SOUL_GAME_CONFIG.MAX_PRESS_DURATION_MS) {
   return Math.min(end, start + maxDurationMs);
 }
@@ -60,4 +71,44 @@ export function shouldMatchPressIntervals(
   }
 
   return { matched: true as const, reason: "ok" as const, overlap };
+}
+
+export function selectSoulGameMatchCandidate(params: {
+  currentQueueEntryId: string;
+  currentPressEventId: string;
+  currentInterval: PressInterval;
+  currentDurationMs: number;
+  candidates: MatchCandidateInput[];
+  config?: SoulGameConfig;
+}) {
+  const config = params.config ?? SOUL_GAME_CONFIG;
+
+  if (params.currentDurationMs < config.MIN_HOLD_MS) {
+    return null;
+  }
+
+  const sorted = [...params.candidates].sort((a, b) => {
+    const aTime = a.createdAt ?? a.interval.start;
+    const bTime = b.createdAt ?? b.interval.start;
+    return bTime - aTime;
+  });
+
+  for (const candidate of sorted) {
+    if (candidate.queueEntryId === params.currentQueueEntryId) continue;
+    if (candidate.pressEventId === params.currentPressEventId) continue;
+    if (!candidate.isQueueActive || candidate.hasActiveMatch) continue;
+    if (candidate.isAlreadyMatchedPress) continue;
+    if (candidate.durationMs < config.MIN_HOLD_MS) continue;
+
+    const decision = shouldMatchPressIntervals(params.currentInterval, candidate.interval, config);
+    if (!decision.matched || !decision.overlap) continue;
+
+    return {
+      candidateQueueEntryId: candidate.queueEntryId,
+      candidatePressEventId: candidate.pressEventId,
+      overlap: decision.overlap,
+    };
+  }
+
+  return null;
 }

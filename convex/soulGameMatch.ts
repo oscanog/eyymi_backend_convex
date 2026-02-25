@@ -4,7 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import {
   SOUL_GAME_CONFIG,
   clampPressEnd,
-  shouldMatchPressIntervals,
+  selectSoulGameMatchCandidate,
 } from "./soulGameLogic";
 
 function isQueueEntryActive(entry: Doc<"soulGameQueue">, now: number) {
@@ -187,59 +187,84 @@ export const pressEnd = mutation({
 
     const currentInterval = { start: press.pressStartedAt, end: endedAt };
 
-    for (const candidate of candidatePresses.sort((a, b) => b.pressStartedAt - a.pressStartedAt)) {
+    const candidateQueueMap = new Map<string, Doc<"soulGameQueue"> | null>();
+    const candidateInputs = [];
+    for (const candidate of candidatePresses) {
       if (candidate._id === press._id) continue;
       if (candidate.queueEntryId === args.queueEntryId) continue;
       if (candidate.pressEndedAt === undefined || candidate.durationMs === undefined) continue;
-      if (candidate.durationMs < SOUL_GAME_CONFIG.MIN_HOLD_MS) continue;
-      if (candidate.matchId) continue;
 
-      const candidateQueue = await ctx.db.get(candidate.queueEntryId);
-      if (!candidateQueue || !isQueueEntryActive(candidateQueue, now)) continue;
-      if (candidateQueue.activeMatchId) continue;
+      const queueKey = String(candidate.queueEntryId);
+      let candidateQueue = candidateQueueMap.get(queueKey) ?? null;
+      if (!candidateQueueMap.has(queueKey)) {
+        candidateQueue = await ctx.db.get(candidate.queueEntryId);
+        candidateQueueMap.set(queueKey, candidateQueue);
+      }
 
-      const decision = shouldMatchPressIntervals(
-        currentInterval,
-        { start: candidate.pressStartedAt, end: candidate.pressEndedAt },
-      );
-      if (!decision.matched || !decision.overlap) continue;
-
-      const matchId = await ctx.db.insert("soulGameMatches", {
-        userAQueueEntryId: args.queueEntryId,
-        userBQueueEntryId: candidate.queueEntryId,
-        userAPressEventId: press._id,
-        userBPressEventId: candidate._id,
-        matchWindowStart: decision.overlap.start,
-        matchWindowEnd: decision.overlap.end,
-        overlapMs: decision.overlap.overlapMs,
-        createdAt: now,
-        status: "pending_intro",
+      candidateInputs.push({
+        queueEntryId: String(candidate.queueEntryId),
+        pressEventId: String(candidate._id),
+        interval: { start: candidate.pressStartedAt, end: candidate.pressEndedAt },
+        durationMs: candidate.durationMs,
+        isQueueActive: Boolean(candidateQueue && isQueueEntryActive(candidateQueue, now)),
+        hasActiveMatch: Boolean(candidateQueue?.activeMatchId),
+        isAlreadyMatchedPress: Boolean(candidate.matchId),
+        createdAt: candidate.createdAt,
       });
+    }
 
-      await ctx.db.patch(press._id, { status: "matched", matchId });
-      await ctx.db.patch(candidate._id, { status: "matched", matchId });
+    const selected = selectSoulGameMatchCandidate({
+      currentQueueEntryId: String(args.queueEntryId),
+      currentPressEventId: String(press._id),
+      currentInterval,
+      currentDurationMs: durationMs,
+      candidates: candidateInputs,
+    });
 
-      await ctx.db.patch(queue._id, {
-        activeMatchId: matchId,
-        queueStatus: "matched",
-        lastHeartbeatAt: now,
-      });
-      await ctx.db.patch(candidateQueue._id, {
-        activeMatchId: matchId,
-        queueStatus: "matched",
-        lastHeartbeatAt: now,
-      });
+    if (selected) {
+      const candidate = candidatePresses.find((item) => String(item._id) === selected.candidatePressEventId);
+      if (candidate) {
+        const candidateQueue = await ctx.db.get(candidate.queueEntryId);
+        if (candidateQueue && isQueueEntryActive(candidateQueue, now) && !candidateQueue.activeMatchId) {
 
-      const session = await getOrCreateSessionForMatch(ctx, matchId);
+          const matchId = await ctx.db.insert("soulGameMatches", {
+            userAQueueEntryId: args.queueEntryId,
+            userBQueueEntryId: candidate.queueEntryId,
+            userAPressEventId: press._id,
+            userBPressEventId: candidate._id,
+            matchWindowStart: selected.overlap.start,
+            matchWindowEnd: selected.overlap.end,
+            overlapMs: selected.overlap.overlapMs,
+            createdAt: now,
+            status: "pending_intro",
+          });
 
-      return {
-        ok: true as const,
-        matched: true as const,
-        matchId,
-        sessionId: session?._id ?? null,
-        overlapMs: decision.overlap.overlapMs,
-        serverNow: now,
-      };
+          await ctx.db.patch(press._id, { status: "matched", matchId });
+          await ctx.db.patch(candidate._id, { status: "matched", matchId });
+
+          await ctx.db.patch(queue._id, {
+            activeMatchId: matchId,
+            queueStatus: "matched",
+            lastHeartbeatAt: now,
+          });
+          await ctx.db.patch(candidateQueue._id, {
+            activeMatchId: matchId,
+            queueStatus: "matched",
+            lastHeartbeatAt: now,
+          });
+
+          const session = await getOrCreateSessionForMatch(ctx, matchId);
+
+          return {
+            ok: true as const,
+            matched: true as const,
+            matchId,
+            sessionId: session?._id ?? null,
+            overlapMs: selected.overlap.overlapMs,
+            serverNow: now,
+          };
+        }
+      }
     }
 
     return {
