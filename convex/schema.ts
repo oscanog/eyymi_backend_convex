@@ -6,12 +6,30 @@ export default defineSchema({
     deviceId: v.string(),
     username: v.string(),
     usernameKey: v.optional(v.string()),
+    gender: v.optional(
+      v.union(
+        v.literal("male"),
+        v.literal("female"),
+        v.literal("gay"),
+        v.literal("lesbian")
+      )
+    ),
     isOnline: v.boolean(),
     lastSeen: v.number(),
+    isAdminDummy: v.optional(v.boolean()),
+    dummySlot: v.optional(v.number()),
   })
   .index("by_device", ["deviceId"])
   .index("by_usernameKey", ["usernameKey"])
   .index("by_lastSeen", ["lastSeen"]),
+
+  adminDummyDeployments: defineTable({
+    key: v.string(),
+    userIds: v.array(v.id("users")),
+    startedAt: v.number(),
+    expiresAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_key", ["key"]),
 
   locationSessions: defineTable({
     code: v.string(), // 6 chars: A-Z, 0-9

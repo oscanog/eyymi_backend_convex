@@ -73,6 +73,16 @@ cron.interval(
 );
 
 /**
+ * Keep admin dummy user deployment lifecycle in sync every minute.
+ */
+cron.interval(
+  "syncAdminDummyUsersLifecycle",
+  { minutes: 1 },
+  internalApi.admin.syncDummyUsersLifecycle,
+  {}
+);
+
+/**
  * Cleanup inactive users every minute
  * Removes users inactive for 5 minutes when not linked to active session/invite.
  */

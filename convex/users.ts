@@ -6,6 +6,9 @@ const ONLINE_WINDOW_MS = 2 * 60 * 1000;
 const INACTIVE_USER_CLEANUP_MS = 5 * 60 * 1000;
 const USERNAME_MIN_LENGTH = 3;
 const USERNAME_MAX_LENGTH = 20;
+const ADMIN_DUMMY_DEPLOYMENT_KEY = "global";
+export const USER_GENDER_VALUES = ["male", "female", "gay", "lesbian"] as const;
+export type UserGender = (typeof USER_GENDER_VALUES)[number];
 
 function buildUsernameInUseError(requestedUsername: string, suggestion: string): ConvexError<{
   code: "USERNAME_IN_USE";
@@ -27,6 +30,25 @@ function normalizeUsername(username: string): string {
 
 function sanitizeUsername(username: string): string {
   return username.trim().replace(/\s+/g, " ").slice(0, USERNAME_MAX_LENGTH);
+}
+
+export function isSupportedUserGender(value: string): value is UserGender {
+  return USER_GENDER_VALUES.includes(value as UserGender);
+}
+
+export function buildUpsertPresencePayload(params: {
+  username: string;
+  usernameKey: string;
+  now: number;
+  gender?: UserGender;
+}) {
+  return {
+    username: params.username,
+    usernameKey: params.usernameKey,
+    ...(params.gender ? { gender: params.gender } : {}),
+    isOnline: true,
+    lastSeen: params.now,
+  };
 }
 
 function isUserActive(user: Doc<"users">, now: number): boolean {
@@ -133,6 +155,14 @@ export const upsert = mutation({
   args: {
     deviceId: v.string(),
     username: v.string(),
+    gender: v.optional(
+      v.union(
+        v.literal("male"),
+        v.literal("female"),
+        v.literal("gay"),
+        v.literal("lesbian")
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -172,12 +202,15 @@ export const upsert = mutation({
       }
 
       // Update last seen and online status
-      await ctx.db.patch(existing._id, {
-        username,
-        usernameKey,
-        isOnline: true,
-        lastSeen: now,
-      });
+      await ctx.db.patch(
+        existing._id,
+        buildUpsertPresencePayload({
+          username,
+          usernameKey,
+          now,
+          gender: args.gender,
+        })
+      );
       // Return the updated user
       return await ctx.db.get(existing._id);
     }
@@ -199,10 +232,12 @@ export const upsert = mutation({
     // Create new user
     const newUserId = await ctx.db.insert("users", {
       deviceId: args.deviceId,
-      username,
-      usernameKey,
-      isOnline: true,
-      lastSeen: now,
+      ...buildUpsertPresencePayload({
+        username,
+        usernameKey,
+        now,
+        gender: args.gender,
+      }),
     });
     // Return the created user
     return await ctx.db.get(newUserId);
@@ -294,6 +329,14 @@ export const getOnlineUsers = query({
   handler: async (ctx) => {
     const now = Date.now();
     const twoMinutesAgo = now - ONLINE_WINDOW_MS;
+    const dummyDeployment = await ctx.db
+      .query("adminDummyDeployments")
+      .withIndex("by_key", (q) => q.eq("key", ADMIN_DUMMY_DEPLOYMENT_KEY))
+      .first();
+    const isDummyDeploymentActive = Boolean(dummyDeployment && dummyDeployment.expiresAt > now);
+    const deployedDummyIds = isDummyDeploymentActive
+      ? new Set(dummyDeployment!.userIds.map((userId) => String(userId)))
+      : null;
 
     const users = await ctx.db
       .query("users")
@@ -305,8 +348,14 @@ export const getOnlineUsers = query({
       )
       .collect();
 
+    const visibleUsers = users.filter((user) => {
+      if (!user.isAdminDummy) return true;
+      if (!isDummyDeploymentActive || !deployedDummyIds) return false;
+      return deployedDummyIds.has(String(user._id));
+    });
+
     // Sort by lastSeen descending (most recently active first)
-    return users.sort((a, b) => b.lastSeen - a.lastSeen);
+    return visibleUsers.sort((a, b) => b.lastSeen - a.lastSeen);
   },
 });
 

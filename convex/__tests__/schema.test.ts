@@ -3,8 +3,22 @@ import { describe, expect, it } from "vitest";
 describe("Schema Types", () => {
   it("should have valid user schema", () => {
     // Validate user schema structure
-    const userFields = ["deviceId", "username", "usernameKey", "isOnline", "lastSeen"];
-    expect(userFields.length).toBe(5);
+    const userFields = [
+      "deviceId",
+      "username",
+      "usernameKey",
+      "gender",
+      "isOnline",
+      "lastSeen",
+      "isAdminDummy",
+      "dummySlot",
+    ];
+    expect(userFields.length).toBe(8);
+  });
+
+  it("should have valid admin dummy deployment schema", () => {
+    const deploymentFields = ["key", "userIds", "startedAt", "expiresAt", "updatedAt"];
+    expect(deploymentFields.length).toBe(5);
   });
 
   it("should have valid location session schema", () => {
@@ -42,8 +56,11 @@ describe("API Endpoints", () => {
       "users.getByDevice", 
       "users.heartbeat",
       "users.setOffline",
+      "users.getOnlineUsers",
+      "admin.deployDummyUsers",
+      "admin.getDummyUsersStatus",
     ];
-    expect(userEndpoints.length).toBe(4);
+    expect(userEndpoints.length).toBe(7);
   });
 
   it("should define canonical location session endpoints", () => {
@@ -97,6 +114,20 @@ describe("API Endpoints", () => {
       "meetingPlaces.searchSuggestions",
     ];
     expect(meetingPlaceEndpoints.length).toBe(5);
+  });
+});
+
+describe("User Gender Values", () => {
+  it("should keep the allowed onboarding gender values", () => {
+    const allowedGenders = ["male", "female", "gay", "lesbian"];
+    expect(allowedGenders).toEqual(["male", "female", "gay", "lesbian"]);
+  });
+
+  it("should reject values outside the supported set", () => {
+    const allowed = new Set(["male", "female", "gay", "lesbian"]);
+    expect(allowed.has("man")).toBe(false);
+    expect(allowed.has("woman")).toBe(false);
+    expect(allowed.has("nonbinary")).toBe(false);
   });
 });
 

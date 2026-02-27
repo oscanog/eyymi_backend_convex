@@ -27,14 +27,60 @@ If both are true:
 
 ## Dev setup (allowed)
 
-For development deployment `adept-seahorse-877`, set:
+Important: `OTP_DEBUG_LOG_CODES` is read by the **Convex backend runtime** (`process.env` in `convex/authOtp.ts`).
+Setting it only in the frontend app `.env.local` (for example `eyymi_tanstack/.env.local` or `openspa_tanstack/.env.local`) does **not** enable backend OTP logs.
 
-- `OTP_DEBUG_LOG_CODES=true`
+### Required steps (works for original and cloned repos)
 
-Then OTP request logs can show:
+1. Make sure the frontend and backend point to the **same Convex deployment**
+
+- Frontend: `VITE_CONVEX_URL` in the TanStack app `.env.local`
+- Backend: `CONVEX_DEPLOYMENT` / `CONVEX_URL` in the Convex backend `.env.local`
+
+If they point to different deployments, OTP requests will hit one deployment while you watch logs from another.
+
+2. Set the debug flag in the **Convex deployment runtime env** (not just local files)
+
+Run this inside the backend repo you are using:
+
+```powershell
+npx convex env set OTP_DEBUG_LOG_CODES true
+npx convex env list
+```
+
+3. Restart the backend dev process
+
+```powershell
+npm run dev
+```
+
+4. Request an OTP again and watch the backend terminal
+
+You should see:
 
 - `[otp.dev] challenge_created`
-- including the generated `code`
+- the generated `code`
+
+### Examples
+
+Original repo (`eyymi_backend_convex`):
+
+- align with the `eyymi_tanstack` `VITE_CONVEX_URL`
+- then run `npx convex env set OTP_DEBUG_LOG_CODES true` in `eyymi_backend_convex`
+
+Cloned repo (`openspa_backend_convex`):
+
+- align with the `openspa_tanstack` `VITE_CONVEX_URL`
+- then run `npx convex env set OTP_DEBUG_LOG_CODES true` in `openspa_backend_convex`
+
+### Troubleshooting (most common issue)
+
+If OTP is working but the debug code is not printed:
+
+- Check whether frontend and backend are using different Convex deployments
+- Confirm `npx convex env list` shows `OTP_DEBUG_LOG_CODES=true` for the active deployment
+- Restart `npm run dev` after changing backend `.env.local`
+- Ignore `OTP_DEBUG_LOG_CODES` in the frontend `.env.local` (it does not control Convex server logs)
 
 ## Prod setup (must stay off)
 
@@ -54,4 +100,3 @@ Even if someone sets it to `true` by mistake, the code blocks OTP logging in pro
 ## Related file
 
 - `convex/authOtp.ts`
-
