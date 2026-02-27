@@ -3,8 +3,12 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import { type Id } from "./_generated/dataModel";
 
 const DEPLOYMENT_KEY = "global";
-export const DUMMY_COUNT = 10;
+export const DUMMY_COUNT = 40;
 export const DUMMY_DURATION_MS = 10 * 60 * 1000;
+const DUMMY_AVATAR_COUNT = 10;
+const DUMMY_GENDER_BUCKET_SIZE = 10;
+
+export type DummyGender = "male" | "female" | "lesbian" | "gay";
 
 function normalizeUsername(username: string): string {
   return username.trim().toLowerCase();
@@ -20,6 +24,19 @@ export function buildDummyIdentity(slot: number): { deviceId: string; username: 
     deviceId: `admin_dummy_device_${suffix}`,
     username: `dummy_user_${suffix}`,
   };
+}
+
+export function buildDummyGender(slot: number): DummyGender {
+  const normalizedSlot = ((Math.max(slot, 1) - 1) % DUMMY_COUNT) + 1;
+  if (normalizedSlot <= DUMMY_GENDER_BUCKET_SIZE) return "male";
+  if (normalizedSlot <= DUMMY_GENDER_BUCKET_SIZE * 2) return "female";
+  if (normalizedSlot <= DUMMY_GENDER_BUCKET_SIZE * 3) return "lesbian";
+  return "gay";
+}
+
+export function buildDummyAvatarId(slot: number): string {
+  const avatarSlot = ((Math.max(slot, 1) - 1) % DUMMY_AVATAR_COUNT) + 1;
+  return `copy-ava-${padSlot(avatarSlot)}`;
 }
 
 export function isDummyDeploymentActive(expiresAt: number | null | undefined, now: number): boolean {
@@ -74,6 +91,8 @@ export const deployDummyUsers = mutation({
 
     for (let slot = 1; slot <= DUMMY_COUNT; slot++) {
       const identity = buildDummyIdentity(slot);
+      const gender = buildDummyGender(slot);
+      const avatarId = buildDummyAvatarId(slot);
       const existing = await ctx.db
         .query("users")
         .withIndex("by_device", (q) => q.eq("deviceId", identity.deviceId))
@@ -83,6 +102,8 @@ export const deployDummyUsers = mutation({
         await ctx.db.patch(existing._id, {
           username: identity.username,
           usernameKey: normalizeUsername(identity.username),
+          gender,
+          avatarId,
           isOnline: true,
           lastSeen: now,
           isAdminDummy: true,
@@ -97,6 +118,8 @@ export const deployDummyUsers = mutation({
         deviceId: identity.deviceId,
         username: identity.username,
         usernameKey: normalizeUsername(identity.username),
+        gender,
+        avatarId,
         isOnline: true,
         lastSeen: now,
         isAdminDummy: true,
@@ -213,20 +236,32 @@ export const syncDummyUsersLifecycle = internalMutation({
       const userId = deployment.userIds[index];
       const user = await ctx.db.get(userId);
       if (!user) continue;
+      const slot = user.dummySlot ?? index + 1;
+      const identity = buildDummyIdentity(slot);
+      const gender = buildDummyGender(slot);
+      const avatarId = buildDummyAvatarId(slot);
 
       if (isActive) {
         await ctx.db.patch(user._id, {
+          username: identity.username,
+          usernameKey: normalizeUsername(identity.username),
+          gender,
+          avatarId,
           isOnline: true,
           lastSeen: now,
           isAdminDummy: true,
-          dummySlot: user.dummySlot ?? index + 1,
+          dummySlot: slot,
         });
       } else {
         await ctx.db.patch(user._id, {
+          username: identity.username,
+          usernameKey: normalizeUsername(identity.username),
+          gender,
+          avatarId,
           isOnline: false,
           lastSeen: now,
           isAdminDummy: true,
-          dummySlot: user.dummySlot ?? index + 1,
+          dummySlot: slot,
         });
       }
       touched += 1;

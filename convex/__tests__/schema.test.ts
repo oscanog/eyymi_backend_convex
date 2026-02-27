@@ -8,12 +8,13 @@ describe("Schema Types", () => {
       "username",
       "usernameKey",
       "gender",
+      "avatarId",
       "isOnline",
       "lastSeen",
       "isAdminDummy",
       "dummySlot",
     ];
-    expect(userFields.length).toBe(8);
+    expect(userFields.length).toBe(9);
   });
 
   it("should have valid admin dummy deployment schema", () => {

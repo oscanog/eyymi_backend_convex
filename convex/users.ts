@@ -41,11 +41,13 @@ export function buildUpsertPresencePayload(params: {
   usernameKey: string;
   now: number;
   gender?: UserGender;
+  avatarId?: string;
 }) {
   return {
     username: params.username,
     usernameKey: params.usernameKey,
     ...(params.gender ? { gender: params.gender } : {}),
+    ...(params.avatarId ? { avatarId: params.avatarId } : {}),
     isOnline: true,
     lastSeen: params.now,
   };
@@ -163,6 +165,7 @@ export const upsert = mutation({
         v.literal("lesbian")
       )
     ),
+    avatarId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -209,6 +212,7 @@ export const upsert = mutation({
           usernameKey,
           now,
           gender: args.gender,
+          avatarId: args.avatarId,
         })
       );
       // Return the updated user
@@ -237,6 +241,7 @@ export const upsert = mutation({
         usernameKey,
         now,
         gender: args.gender,
+        avatarId: args.avatarId,
       }),
     });
     // Return the created user

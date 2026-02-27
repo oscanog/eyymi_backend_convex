@@ -14,6 +14,7 @@ export default defineSchema({
         v.literal("lesbian")
       )
     ),
+    avatarId: v.optional(v.string()),
     isOnline: v.boolean(),
     lastSeen: v.number(),
     isAdminDummy: v.optional(v.boolean()),

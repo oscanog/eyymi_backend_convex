@@ -24,12 +24,14 @@ describe("users gender helpers", () => {
       usernameKey: "alex",
       now: 123,
       gender: "gay",
+      avatarId: "copy-ava-03",
     });
 
     expect(payload).toMatchObject({
       username: "alex",
       usernameKey: "alex",
       gender: "gay",
+      avatarId: "copy-ava-03",
       isOnline: true,
       lastSeen: 123,
     });
@@ -45,6 +47,25 @@ describe("users gender helpers", () => {
     expect(payload).toMatchObject({
       username: "alex",
       usernameKey: "alex",
+      isOnline: true,
+      lastSeen: 123,
+    });
+    expect("gender" in payload).toBe(false);
+    expect("avatarId" in payload).toBe(false);
+  });
+
+  it("includes avatarId without requiring gender", () => {
+    const payload = buildUpsertPresencePayload({
+      username: "alex",
+      usernameKey: "alex",
+      now: 123,
+      avatarId: "copy-ava-08",
+    });
+
+    expect(payload).toMatchObject({
+      username: "alex",
+      usernameKey: "alex",
+      avatarId: "copy-ava-08",
       isOnline: true,
       lastSeen: 123,
     });
