@@ -11,6 +11,8 @@
 import type * as admin from "../admin.js";
 import type * as authOtp from "../authOtp.js";
 import type * as authSessions from "../authSessions.js";
+import type * as copyMatch from "../copyMatch.js";
+import type * as copyMatchLogic from "../copyMatchLogic.js";
 import type * as crons from "../crons.js";
 import type * as health from "../health.js";
 import type * as invites from "../invites.js";
@@ -36,6 +38,8 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   authOtp: typeof authOtp;
   authSessions: typeof authSessions;
+  copyMatch: typeof copyMatch;
+  copyMatchLogic: typeof copyMatchLogic;
   crons: typeof crons;
   health: typeof health;
   invites: typeof invites;

@@ -14,6 +14,14 @@ export default defineSchema({
         v.literal("lesbian")
       )
     ),
+    preferredMatchGender: v.optional(
+      v.union(
+        v.literal("male"),
+        v.literal("female"),
+        v.literal("gay"),
+        v.literal("lesbian")
+      )
+    ),
     avatarId: v.optional(v.string()),
     isOnline: v.boolean(),
     lastSeen: v.number(),
@@ -208,6 +216,82 @@ export default defineSchema({
   .index("by_refreshTokenHash", ["refreshTokenHash"])
   .index("by_expiresAt", ["expiresAt"])
   .index("by_revokedAt", ["revokedAt"]),
+
+  copyQueue: defineTable({
+    participantKey: v.string(),
+    profileUserId: v.optional(v.id("users")),
+    username: v.optional(v.string()),
+    avatarId: v.optional(v.string()),
+    gender: v.optional(
+      v.union(
+        v.literal("male"),
+        v.literal("female"),
+        v.literal("gay"),
+        v.literal("lesbian")
+      )
+    ),
+    preferredMatchGender: v.optional(
+      v.union(
+        v.literal("male"),
+        v.literal("female"),
+        v.literal("gay"),
+        v.literal("lesbian")
+      )
+    ),
+    isActive: v.boolean(),
+    queueStatus: v.union(v.literal("queued"), v.literal("matching"), v.literal("matched")),
+    targetQueueEntryId: v.optional(v.id("copyQueue")),
+    activeMatchId: v.optional(v.id("copyMatches")),
+    joinedAt: v.number(),
+    lastHeartbeatAt: v.number(),
+  })
+    .index("by_participantKey", ["participantKey"])
+    .index("by_isActive_lastHeartbeatAt", ["isActive", "lastHeartbeatAt"])
+    .index("by_activeMatchId", ["activeMatchId"]),
+
+  copyPressEvents: defineTable({
+    queueEntryId: v.id("copyQueue"),
+    targetQueueEntryId: v.id("copyQueue"),
+    pressStartedAt: v.number(),
+    pressEndedAt: v.optional(v.number()),
+    durationMs: v.optional(v.number()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("matched"),
+      v.literal("expired"),
+      v.literal("cancelled")
+    ),
+    matchId: v.optional(v.id("copyMatches")),
+    createdAt: v.number(),
+  })
+    .index("by_queueEntry_status", ["queueEntryId", "status"])
+    .index("by_status_startedAt", ["status", "pressStartedAt"])
+    .index("by_target_status", ["targetQueueEntryId", "status"])
+    .index("by_matchId", ["matchId"]),
+
+  copyMatches: defineTable({
+    userAQueueEntryId: v.id("copyQueue"),
+    userBQueueEntryId: v.id("copyQueue"),
+    userAPressEventId: v.id("copyPressEvents"),
+    userBPressEventId: v.id("copyPressEvents"),
+    userAProgressStartAt: v.number(),
+    userBProgressStartAt: v.number(),
+    progressDurationMs: v.number(),
+    matchWindowStart: v.number(),
+    matchWindowEnd: v.number(),
+    overlapMs: v.number(),
+    status: v.union(
+      v.literal("pending_progress"),
+      v.literal("ready"),
+      v.literal("ended"),
+      v.literal("cancelled")
+    ),
+    createdAt: v.number(),
+    readyAt: v.optional(v.number()),
+  })
+    .index("by_status_createdAt", ["status", "createdAt"])
+    .index("by_userAQueueEntryId", ["userAQueueEntryId"])
+    .index("by_userBQueueEntryId", ["userBQueueEntryId"]),
 
   soulGameQueue: defineTable({
     participantKey: v.string(),

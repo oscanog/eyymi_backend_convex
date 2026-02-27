@@ -83,6 +83,16 @@ cron.interval(
 );
 
 /**
+ * Keep /copy queue and pending matches healthy.
+ */
+cron.interval(
+  "cleanupCopyMatchLifecycle",
+  { minutes: 1 },
+  internalApi.copyMatch.cleanupLifecycle,
+  {}
+);
+
+/**
  * Cleanup inactive users every minute
  * Removes users inactive for 5 minutes when not linked to active session/invite.
  */

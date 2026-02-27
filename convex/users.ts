@@ -9,6 +9,8 @@ const USERNAME_MAX_LENGTH = 20;
 const ADMIN_DUMMY_DEPLOYMENT_KEY = "global";
 export const USER_GENDER_VALUES = ["male", "female", "gay", "lesbian"] as const;
 export type UserGender = (typeof USER_GENDER_VALUES)[number];
+export const USER_MATCH_PREFERENCE_VALUES = ["male", "female", "gay", "lesbian"] as const;
+export type UserMatchPreference = (typeof USER_MATCH_PREFERENCE_VALUES)[number];
 
 function buildUsernameInUseError(requestedUsername: string, suggestion: string): ConvexError<{
   code: "USERNAME_IN_USE";
@@ -41,12 +43,14 @@ export function buildUpsertPresencePayload(params: {
   usernameKey: string;
   now: number;
   gender?: UserGender;
+  preferredMatchGender?: UserMatchPreference;
   avatarId?: string;
 }) {
   return {
     username: params.username,
     usernameKey: params.usernameKey,
     ...(params.gender ? { gender: params.gender } : {}),
+    ...(params.preferredMatchGender ? { preferredMatchGender: params.preferredMatchGender } : {}),
     ...(params.avatarId ? { avatarId: params.avatarId } : {}),
     isOnline: true,
     lastSeen: params.now,
@@ -165,6 +169,14 @@ export const upsert = mutation({
         v.literal("lesbian")
       )
     ),
+    preferredMatchGender: v.optional(
+      v.union(
+        v.literal("male"),
+        v.literal("female"),
+        v.literal("gay"),
+        v.literal("lesbian")
+      )
+    ),
     avatarId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -212,6 +224,7 @@ export const upsert = mutation({
           usernameKey,
           now,
           gender: args.gender,
+          preferredMatchGender: args.preferredMatchGender,
           avatarId: args.avatarId,
         })
       );
@@ -241,6 +254,7 @@ export const upsert = mutation({
         usernameKey,
         now,
         gender: args.gender,
+        preferredMatchGender: args.preferredMatchGender,
         avatarId: args.avatarId,
       }),
     });
@@ -361,6 +375,55 @@ export const getOnlineUsers = query({
 
     // Sort by lastSeen descending (most recently active first)
     return visibleUsers.sort((a, b) => b.lastSeen - a.lastSeen);
+  },
+});
+
+export const updateMatchPreference = mutation({
+  args: {
+    userId: v.optional(v.id("users")),
+    deviceId: v.optional(v.string()),
+    preferredMatchGender: v.union(
+      v.literal("male"),
+      v.literal("female"),
+      v.literal("gay"),
+      v.literal("lesbian")
+    ),
+  },
+  returns: v.object({
+    userId: v.string(),
+    preferredMatchGender: v.union(
+      v.literal("male"),
+      v.literal("female"),
+      v.literal("gay"),
+      v.literal("lesbian")
+    ),
+  }),
+  handler: async (ctx, args) => {
+    let user: Doc<"users"> | null = null;
+    if (args.userId) {
+      user = await ctx.db.get(args.userId);
+    } else if (args.deviceId) {
+      user = await ctx.db
+        .query("users")
+        .withIndex("by_device", (q) => q.eq("deviceId", args.deviceId!))
+        .first();
+    }
+
+    if (!user) {
+      throw new ConvexError({
+        code: "USER_NOT_FOUND",
+        message: "Could not resolve current user for match preference update.",
+      });
+    }
+
+    await ctx.db.patch(user._id, {
+      preferredMatchGender: args.preferredMatchGender,
+    });
+
+    return {
+      userId: String(user._id),
+      preferredMatchGender: args.preferredMatchGender,
+    };
   },
 });
 

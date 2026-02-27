@@ -8,18 +8,64 @@ describe("Schema Types", () => {
       "username",
       "usernameKey",
       "gender",
+      "preferredMatchGender",
       "avatarId",
       "isOnline",
       "lastSeen",
       "isAdminDummy",
       "dummySlot",
     ];
-    expect(userFields.length).toBe(9);
+    expect(userFields.length).toBe(10);
   });
 
   it("should have valid admin dummy deployment schema", () => {
     const deploymentFields = ["key", "userIds", "startedAt", "expiresAt", "updatedAt"];
     expect(deploymentFields.length).toBe(5);
+  });
+
+  it("should have valid copy matchmaking schemas", () => {
+    const copyQueueFields = [
+      "participantKey",
+      "profileUserId",
+      "username",
+      "avatarId",
+      "gender",
+      "preferredMatchGender",
+      "isActive",
+      "queueStatus",
+      "targetQueueEntryId",
+      "activeMatchId",
+      "joinedAt",
+      "lastHeartbeatAt",
+    ];
+    const copyPressFields = [
+      "queueEntryId",
+      "targetQueueEntryId",
+      "pressStartedAt",
+      "pressEndedAt",
+      "durationMs",
+      "status",
+      "matchId",
+      "createdAt",
+    ];
+    const copyMatchFields = [
+      "userAQueueEntryId",
+      "userBQueueEntryId",
+      "userAPressEventId",
+      "userBPressEventId",
+      "userAProgressStartAt",
+      "userBProgressStartAt",
+      "progressDurationMs",
+      "matchWindowStart",
+      "matchWindowEnd",
+      "overlapMs",
+      "status",
+      "createdAt",
+      "readyAt",
+    ];
+    expect(copyQueueFields.length).toBe(12);
+    expect(copyPressFields.length).toBe(8);
+    expect(copyMatchFields.length).toBe(13);
   });
 
   it("should have valid location session schema", () => {
@@ -58,10 +104,18 @@ describe("API Endpoints", () => {
       "users.heartbeat",
       "users.setOffline",
       "users.getOnlineUsers",
+      "users.updateMatchPreference",
       "admin.deployDummyUsers",
       "admin.getDummyUsersStatus",
+      "copyMatch.joinQueue",
+      "copyMatch.heartbeat",
+      "copyMatch.leaveQueue",
+      "copyMatch.updateTarget",
+      "copyMatch.pressStart",
+      "copyMatch.pressEnd",
+      "copyMatch.getClientState",
     ];
-    expect(userEndpoints.length).toBe(7);
+    expect(userEndpoints.length).toBe(15);
   });
 
   it("should define canonical location session endpoints", () => {
