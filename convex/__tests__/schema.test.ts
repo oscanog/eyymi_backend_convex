@@ -33,6 +33,7 @@ describe("Schema Types", () => {
   it("should have valid copy matchmaking schemas", () => {
     const copyQueueFields = [
       "participantKey",
+      "scopeKey",
       "profileUserId",
       "linkedUserId",
       "isAdminDummy",
@@ -47,11 +48,16 @@ describe("Schema Types", () => {
       "activeMatchId",
       "joinedAt",
       "lastHeartbeatAt",
+      "lastPressAt",
     ];
     const copyPressFields = [
       "queueEntryId",
+      "participantKey",
+      "scopeKey",
       "targetQueueEntryId",
+      "focusWindowId",
       "pressStartedAt",
+      "readyAt",
       "pressEndedAt",
       "durationMs",
       "status",
@@ -59,6 +65,7 @@ describe("Schema Types", () => {
       "createdAt",
     ];
     const copyMatchFields = [
+      "scopeKey",
       "userAQueueEntryId",
       "userBQueueEntryId",
       "userAPressEventId",
@@ -72,10 +79,11 @@ describe("Schema Types", () => {
       "status",
       "createdAt",
       "readyAt",
+      "windowId",
     ];
-    expect(copyQueueFields.length).toBe(15);
-    expect(copyPressFields.length).toBe(8);
-    expect(copyMatchFields.length).toBe(13);
+    expect(copyQueueFields.length).toBe(17);
+    expect(copyPressFields.length).toBe(12);
+    expect(copyMatchFields.length).toBe(15);
   });
 
   it("should have valid location session schema", () => {
@@ -121,12 +129,13 @@ describe("API Endpoints", () => {
       "copyMatch.joinQueue",
       "copyMatch.heartbeat",
       "copyMatch.leaveQueue",
-      "copyMatch.updateTarget",
       "copyMatch.pressStart",
-      "copyMatch.pressEnd",
+      "copyMatch.pressCommit",
+      "copyMatch.pressCancel",
+      "copyMatch.closeMatch",
       "copyMatch.getClientState",
     ];
-    expect(userEndpoints.length).toBe(16);
+    expect(userEndpoints.length).toBe(17);
   });
 
   it("should define canonical location session endpoints", () => {

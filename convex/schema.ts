@@ -220,6 +220,7 @@ export default defineSchema({
 
   copyQueue: defineTable({
     participantKey: v.string(),
+    scopeKey: v.optional(v.string()),
     profileUserId: v.optional(v.id("users")),
     linkedUserId: v.optional(v.id("users")),
     isAdminDummy: v.optional(v.boolean()),
@@ -248,6 +249,7 @@ export default defineSchema({
     activeMatchId: v.optional(v.id("copyMatches")),
     joinedAt: v.number(),
     lastHeartbeatAt: v.number(),
+    lastPressAt: v.optional(v.number()),
   })
     .index("by_participantKey", ["participantKey"])
     .index("by_isActive_lastHeartbeatAt", ["isActive", "lastHeartbeatAt"])
@@ -257,12 +259,17 @@ export default defineSchema({
 
   copyPressEvents: defineTable({
     queueEntryId: v.id("copyQueue"),
+    participantKey: v.optional(v.string()),
+    scopeKey: v.optional(v.string()),
     targetQueueEntryId: v.id("copyQueue"),
+    focusWindowId: v.optional(v.string()),
     pressStartedAt: v.number(),
+    readyAt: v.optional(v.number()),
     pressEndedAt: v.optional(v.number()),
     durationMs: v.optional(v.number()),
     status: v.union(
-      v.literal("pending"),
+      v.literal("holding"),
+      v.literal("ready"),
       v.literal("matched"),
       v.literal("expired"),
       v.literal("cancelled")
@@ -276,6 +283,7 @@ export default defineSchema({
     .index("by_matchId", ["matchId"]),
 
   copyMatches: defineTable({
+    scopeKey: v.optional(v.string()),
     userAQueueEntryId: v.id("copyQueue"),
     userBQueueEntryId: v.id("copyQueue"),
     userAPressEventId: v.id("copyPressEvents"),
@@ -287,13 +295,13 @@ export default defineSchema({
     matchWindowEnd: v.number(),
     overlapMs: v.number(),
     status: v.union(
-      v.literal("pending_progress"),
-      v.literal("ready"),
-      v.literal("ended"),
+      v.literal("success_open"),
+      v.literal("closed"),
       v.literal("cancelled")
     ),
     createdAt: v.number(),
     readyAt: v.optional(v.number()),
+    windowId: v.optional(v.string()),
   })
     .index("by_status_createdAt", ["status", "createdAt"])
     .index("by_userAQueueEntryId", ["userAQueueEntryId"])
