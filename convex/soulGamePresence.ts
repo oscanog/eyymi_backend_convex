@@ -117,13 +117,20 @@ export const leaveQueue = mutation({
 
     const pendingPresses = await ctx.db
       .query("soulGamePressEvents")
-      .withIndex("by_queueEntry_status", (q) =>
-        q.eq("queueEntryId", args.queueEntryId).eq("status", "pending")
-      )
+      .withIndex("by_queueEntry_status", (q) => q.eq("queueEntryId", args.queueEntryId).eq("status", "holding"))
       .collect();
 
     for (const press of pendingPresses) {
-      await ctx.db.patch(press._id, { status: "cancelled" });
+      await ctx.db.patch(press._id, { status: "cancelled", pressEndedAt: Date.now() });
+    }
+
+    const readyPresses = await ctx.db
+      .query("soulGamePressEvents")
+      .withIndex("by_queueEntry_status", (q) => q.eq("queueEntryId", args.queueEntryId).eq("status", "ready"))
+      .collect();
+
+    for (const press of readyPresses) {
+      await ctx.db.patch(press._id, { status: "cancelled", pressEndedAt: Date.now() });
     }
 
     return { ok: true as const };

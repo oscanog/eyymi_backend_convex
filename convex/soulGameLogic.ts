@@ -1,6 +1,6 @@
 export interface SoulGameConfig {
   MIN_HOLD_MS: number;
-  MIN_OVERLAP_MS: number;
+  FOCUS_WINDOW_MS: number;
   MAX_PRESS_DURATION_MS: number;
   QUEUE_STALE_AFTER_MS: number;
   SESSION_DURATION_MS: number;
@@ -8,107 +8,92 @@ export interface SoulGameConfig {
 }
 
 export const SOUL_GAME_CONFIG: SoulGameConfig = {
-  MIN_HOLD_MS: 2000,
-  MIN_OVERLAP_MS: 350,
-  MAX_PRESS_DURATION_MS: 6000,
+  MIN_HOLD_MS: 1_500,
+  FOCUS_WINDOW_MS: 3_000,
+  MAX_PRESS_DURATION_MS: 6_000,
   QUEUE_STALE_AFTER_MS: 45_000,
   SESSION_DURATION_MS: 2 * 60 * 1000,
   INTRO_DURATION_MS: 1_000,
 } as const;
 
-export interface PressInterval {
-  start: number;
-  end: number;
-}
-
-export interface MatchCandidateInput {
-  queueEntryId: string;
-  pressEventId: string;
-  interval: PressInterval;
+export interface SoulGameFocusWindow {
+  id: string;
+  startsAt: number;
+  endsAt: number;
   durationMs: number;
-  isQueueActive: boolean;
-  hasActiveMatch: boolean;
-  isAlreadyMatchedPress?: boolean;
-  createdAt?: number;
 }
 
-export function clampPressEnd(start: number, end: number, maxDurationMs = SOUL_GAME_CONFIG.MAX_PRESS_DURATION_MS) {
-  return Math.min(end, start + maxDurationMs);
+type QueueLike = {
+  _id: unknown;
+  joinedAt: number;
+};
+
+function compareQueueEntries(a: QueueLike, b: QueueLike) {
+  if (a.joinedAt !== b.joinedAt) {
+    return a.joinedAt - b.joinedAt;
+  }
+  return String(a._id).localeCompare(String(b._id));
 }
 
-export function getPressDurationMs(interval: PressInterval) {
-  return Math.max(0, interval.end - interval.start);
-}
-
-export function getOverlapMs(a: PressInterval, b: PressInterval) {
-  const start = Math.max(a.start, b.start);
-  const end = Math.min(a.end, b.end);
-  return Math.max(0, end - start);
-}
-
-export function getOverlapWindow(a: PressInterval, b: PressInterval) {
-  const start = Math.max(a.start, b.start);
-  const end = Math.min(a.end, b.end);
-  if (end <= start) return null;
-  return { start, end, overlapMs: end - start };
-}
-
-export function shouldMatchPressIntervals(
-  a: PressInterval,
-  b: PressInterval,
+export function getSoulGameFocusWindow(
+  now: number,
   config: SoulGameConfig = SOUL_GAME_CONFIG,
-) {
-  const durationA = getPressDurationMs(a);
-  const durationB = getPressDurationMs(b);
-
-  if (durationA < config.MIN_HOLD_MS || durationB < config.MIN_HOLD_MS) {
-    return { matched: false as const, reason: "min_hold" as const, overlap: null };
-  }
-
-  const overlap = getOverlapWindow(a, b);
-  if (!overlap || overlap.overlapMs < config.MIN_OVERLAP_MS) {
-    return { matched: false as const, reason: "overlap" as const, overlap: null };
-  }
-
-  return { matched: true as const, reason: "ok" as const, overlap };
+): SoulGameFocusWindow {
+  const startsAt = Math.floor(now / config.FOCUS_WINDOW_MS) * config.FOCUS_WINDOW_MS;
+  return {
+    id: String(startsAt),
+    startsAt,
+    endsAt: startsAt + config.FOCUS_WINDOW_MS,
+    durationMs: config.FOCUS_WINDOW_MS,
+  };
 }
 
-export function selectSoulGameMatchCandidate(params: {
-  currentQueueEntryId: string;
-  currentPressEventId: string;
-  currentInterval: PressInterval;
-  currentDurationMs: number;
-  candidates: MatchCandidateInput[];
-  config?: SoulGameConfig;
-}) {
-  const config = params.config ?? SOUL_GAME_CONFIG;
+export function sortSoulGameQueueEntries<T extends QueueLike>(entries: T[]) {
+  return [...entries].sort(compareQueueEntries);
+}
 
-  if (params.currentDurationMs < config.MIN_HOLD_MS) {
+export function getSoulGameCandidateCycle<T extends QueueLike>(
+  entries: T[],
+  selfId: unknown,
+) {
+  return sortSoulGameQueueEntries(entries).filter((entry) => String(entry._id) !== String(selfId));
+}
+
+export function getSoulGameFocusTarget<T extends QueueLike>(
+  entries: T[],
+  selfId: unknown,
+  now: number,
+  config: SoulGameConfig = SOUL_GAME_CONFIG,
+): T | null {
+  const candidateCycle = getSoulGameCandidateCycle(entries, selfId);
+  if (candidateCycle.length === 0) {
     return null;
   }
 
-  const sorted = [...params.candidates].sort((a, b) => {
-    const aTime = a.createdAt ?? a.interval.start;
-    const bTime = b.createdAt ?? b.interval.start;
-    return bTime - aTime;
-  });
+  const windowIndex = Math.floor(now / config.FOCUS_WINDOW_MS);
+  return candidateCycle[windowIndex % candidateCycle.length] ?? null;
+}
 
-  for (const candidate of sorted) {
-    if (candidate.queueEntryId === params.currentQueueEntryId) continue;
-    if (candidate.pressEventId === params.currentPressEventId) continue;
-    if (!candidate.isQueueActive || candidate.hasActiveMatch) continue;
-    if (candidate.isAlreadyMatchedPress) continue;
-    if (candidate.durationMs < config.MIN_HOLD_MS) continue;
+export function clampPressEnd(
+  start: number,
+  end: number,
+  maxDurationMs = SOUL_GAME_CONFIG.MAX_PRESS_DURATION_MS,
+) {
+  return Math.min(end, start + maxDurationMs);
+}
 
-    const decision = shouldMatchPressIntervals(params.currentInterval, candidate.interval, config);
-    if (!decision.matched || !decision.overlap) continue;
+export function getHoldProgress(now: number, startAt: number, minHoldMs = SOUL_GAME_CONFIG.MIN_HOLD_MS) {
+  const progressMs = Math.max(0, now - startAt);
+  return {
+    progressMs,
+    progressRatio: Math.min(1, progressMs / minHoldMs),
+  };
+}
 
-    return {
-      candidateQueueEntryId: candidate.queueEntryId,
-      candidatePressEventId: candidate.pressEventId,
-      overlap: decision.overlap,
-    };
-  }
-
-  return null;
+export function canCommitHoldWithinWindow(
+  pressStartedAt: number,
+  windowEndsAt: number,
+  minHoldMs = SOUL_GAME_CONFIG.MIN_HOLD_MS,
+) {
+  return pressStartedAt + minHoldMs <= windowEndsAt;
 }

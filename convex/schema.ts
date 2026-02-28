@@ -323,11 +323,15 @@ export default defineSchema({
   soulGamePressEvents: defineTable({
     queueEntryId: v.id("soulGameQueue"),
     participantKey: v.string(),
+    targetQueueEntryId: v.id("soulGameQueue"),
+    focusWindowId: v.string(),
     pressStartedAt: v.number(),
+    readyAt: v.optional(v.number()),
     pressEndedAt: v.optional(v.number()),
     durationMs: v.optional(v.number()),
     status: v.union(
-      v.literal("pending"),
+      v.literal("holding"),
+      v.literal("ready"),
       v.literal("matched"),
       v.literal("expired"),
       v.literal("cancelled")
@@ -336,6 +340,8 @@ export default defineSchema({
     createdAt: v.number(),
   })
   .index("by_queueEntry_status", ["queueEntryId", "status"])
+  .index("by_target_status", ["targetQueueEntryId", "status"])
+  .index("by_focusWindowId_status", ["focusWindowId", "status"])
   .index("by_status_startedAt", ["status", "pressStartedAt"])
   .index("by_matchId", ["matchId"]),
 

@@ -1,373 +1,330 @@
 import { describe, expect, it } from "vitest";
 import {
   SOUL_GAME_CONFIG,
-  clampPressEnd,
-  getOverlapMs,
-  selectSoulGameMatchCandidate,
-  shouldMatchPressIntervals,
+  canCommitHoldWithinWindow,
+  getSoulGameFocusTarget,
+  getSoulGameFocusWindow,
 } from "../soulGameLogic";
 
 type QueueState = {
   id: string;
+  joinedAt: number;
   isActive: boolean;
-  hasActiveMatch: boolean;
+  activeMatchId?: string;
+  queueStatus: "queued" | "matching" | "matched";
 };
 
 type PressState = {
   id: string;
   queueEntryId: string;
-  start: number;
-  end?: number;
-  durationMs?: number;
-  status: "pending" | "matched" | "expired";
-  matchId?: string;
-  createdAt: number;
+  targetQueueEntryId: string;
+  focusWindowId: string;
+  pressStartedAt: number;
+  readyAt?: number;
+  status: "holding" | "ready" | "matched" | "expired" | "cancelled";
 };
 
 type MatchState = {
   id: string;
   userAQueueEntryId: string;
   userBQueueEntryId: string;
-  overlapMs: number;
-  status: "pending_intro" | "active_2min";
-  conversationEndsAt: number;
+  windowId: string;
+  status: "pending_intro" | "ended";
 };
 
-type SessionState = {
-  id: string;
-  matchId: string;
-  status: "active";
-  endsAt: number;
-};
-
-function createSoulGameFlowHarness() {
+function createHarness() {
   const queues = new Map<string, QueueState>();
-  const presses: PressState[] = [];
-  const matches: MatchState[] = [];
-  const sessions: SessionState[] = [];
+  const presses = new Map<string, PressState>();
+  const matches = new Map<string, MatchState>();
   let pressSeq = 0;
   let matchSeq = 0;
-  let sessionSeq = 0;
+
+  const getActiveQueues = () =>
+    [...queues.values()]
+      .filter((queue) => queue.isActive && !queue.activeMatchId)
+      .map((queue) => ({ _id: queue.id, joinedAt: queue.joinedAt }));
+
+  const getFocusTarget = (queueEntryId: string, now: number) =>
+    getSoulGameFocusTarget(getActiveQueues(), queueEntryId, now)?._id ?? null;
+
+  const getCurrentMatch = (queueEntryId: string) =>
+    [...matches.values()].find(
+      (match) =>
+        match.status === "pending_intro" &&
+        (match.userAQueueEntryId === queueEntryId || match.userBQueueEntryId === queueEntryId),
+    ) ?? null;
 
   return {
-    addQueue(id: string) {
-      queues.set(id, { id, isActive: true, hasActiveMatch: false });
+    addQueue(id: string, joinedAt: number) {
+      queues.set(id, {
+        id,
+        joinedAt,
+        isActive: true,
+        queueStatus: "queued",
+      });
+    },
+    getFocusTarget,
+    getPartnerHoldVisible(queueEntryId: string, now: number) {
+      const focusWindow = getSoulGameFocusWindow(now);
+      const target = getFocusTarget(queueEntryId, now);
+      if (!target) return false;
+      if (getFocusTarget(target, now) !== queueEntryId) return false;
+
+      return [...presses.values()].some(
+        (press) =>
+          press.queueEntryId === target &&
+          press.targetQueueEntryId === queueEntryId &&
+          press.focusWindowId === focusWindow.id &&
+          (press.status === "holding" || press.status === "ready"),
+      );
     },
     pressStart(queueEntryId: string, now: number) {
-      const queue = queues.get(queueEntryId);
-      if (!queue || !queue.isActive || queue.hasActiveMatch) {
-        return { ok: false as const, reason: "queue_inactive" as const };
+      const targetQueueEntryId = getFocusTarget(queueEntryId, now);
+      if (!targetQueueEntryId) {
+        return { ok: false as const, reason: "no_target" as const };
       }
 
-      const existingPending = presses.find(
-        (p) => p.queueEntryId === queueEntryId && p.status === "pending" && p.end === undefined,
+      const focusWindow = getSoulGameFocusWindow(now);
+      const existing = [...presses.values()].find(
+        (press) =>
+          press.queueEntryId === queueEntryId &&
+          press.targetQueueEntryId === targetQueueEntryId &&
+          press.focusWindowId === focusWindow.id &&
+          (press.status === "holding" || press.status === "ready"),
       );
-      if (existingPending) {
-        return { ok: true as const, pressEventId: existingPending.id, reused: true as const };
+      if (existing) {
+        return { ok: true as const, pressEventId: existing.id, targetQueueEntryId, focusWindowId: focusWindow.id };
       }
 
       const id = `press-${++pressSeq}`;
-      presses.push({
+      presses.set(id, {
         id,
         queueEntryId,
-        start: now,
-        status: "pending",
-        createdAt: now,
+        targetQueueEntryId,
+        focusWindowId: focusWindow.id,
+        pressStartedAt: now,
+        status: "holding",
       });
-      return { ok: true as const, pressEventId: id, reused: false as const };
+      const queue = queues.get(queueEntryId)!;
+      queue.queueStatus = "matching";
+      return { ok: true as const, pressEventId: id, targetQueueEntryId, focusWindowId: focusWindow.id };
     },
-    pressEnd(queueEntryId: string, pressEventId: string, now: number) {
-      const press = presses.find((p) => p.id === pressEventId && p.queueEntryId === queueEntryId);
-      const queue = queues.get(queueEntryId);
-      if (!press || !queue) {
+    pressCommit(queueEntryId: string, pressEventId: string, now: number) {
+      const press = presses.get(pressEventId);
+      if (!press || press.queueEntryId !== queueEntryId) {
         return { ok: false as const, matched: false as const, reason: "missing_press" as const };
       }
 
-      const endedAt = clampPressEnd(press.start, now);
-      const durationMs = Math.max(0, endedAt - press.start);
-      press.end = endedAt;
-      press.durationMs = durationMs;
-      press.status = durationMs >= SOUL_GAME_CONFIG.MIN_HOLD_MS ? "pending" : "expired";
-
-      if (press.status === "expired") {
-        return { ok: true as const, matched: false as const, reason: "min_hold" as const };
+      const focusWindow = getSoulGameFocusWindow(now);
+      if (focusWindow.id !== press.focusWindowId) {
+        press.status = "expired";
+        return { ok: true as const, matched: false as const, reason: "focus_window_moved" as const };
       }
 
-      const selected = selectSoulGameMatchCandidate({
-        currentQueueEntryId: queueEntryId,
-        currentPressEventId: pressEventId,
-        currentInterval: { start: press.start, end: endedAt },
-        currentDurationMs: durationMs,
-        candidates: presses
-          .filter((p) => p.id !== pressEventId && p.status === "pending" && p.end !== undefined && p.durationMs !== undefined)
-          .map((p) => {
-            const candidateQueue = queues.get(p.queueEntryId);
-            return {
-              queueEntryId: p.queueEntryId,
-              pressEventId: p.id,
-              interval: { start: p.start, end: p.end! },
-              durationMs: p.durationMs!,
-              isQueueActive: Boolean(candidateQueue?.isActive),
-              hasActiveMatch: Boolean(candidateQueue?.hasActiveMatch),
-              isAlreadyMatchedPress: Boolean(p.matchId),
-              createdAt: p.createdAt,
-            };
-          }),
-      });
-
-      if (!selected) {
-        return { ok: true as const, matched: false as const, reason: "no_overlap" as const };
+      if (!canCommitHoldWithinWindow(press.pressStartedAt, focusWindow.endsAt)) {
+        press.status = "expired";
+        return { ok: true as const, matched: false as const, reason: "window_expired" as const };
       }
 
-      const partnerPress = presses.find((p) => p.id === selected.candidatePressEventId)!;
-      const partnerQueue = queues.get(partnerPress.queueEntryId)!;
+      press.status = "ready";
+      press.readyAt = press.pressStartedAt + SOUL_GAME_CONFIG.MIN_HOLD_MS;
+
+      const reciprocal = [...presses.values()].find(
+        (candidate) =>
+          candidate.queueEntryId === press.targetQueueEntryId &&
+          candidate.targetQueueEntryId === queueEntryId &&
+          candidate.focusWindowId === press.focusWindowId &&
+          candidate.status === "ready",
+      );
+
+      if (!reciprocal) {
+        return { ok: true as const, matched: false as const, reason: "waiting_reciprocal" as const };
+      }
 
       const matchId = `match-${++matchSeq}`;
-      const sessionId = `session-${++sessionSeq}`;
-      const conversationEndsAt = now + SOUL_GAME_CONFIG.SESSION_DURATION_MS;
-
-      press.status = "matched";
-      press.matchId = matchId;
-      partnerPress.status = "matched";
-      partnerPress.matchId = matchId;
-      queue.hasActiveMatch = true;
-      partnerQueue.hasActiveMatch = true;
-
-      matches.push({
+      matches.set(matchId, {
         id: matchId,
         userAQueueEntryId: queueEntryId,
-        userBQueueEntryId: partnerPress.queueEntryId,
-        overlapMs: selected.overlap.overlapMs,
-        status: "active_2min",
-        conversationEndsAt,
-      });
-      sessions.push({
-        id: sessionId,
-        matchId,
-        status: "active",
-        endsAt: conversationEndsAt,
+        userBQueueEntryId: press.targetQueueEntryId,
+        windowId: press.focusWindowId,
+        status: "pending_intro",
       });
 
-      return {
-        ok: true as const,
-        matched: true as const,
-        matchId,
-        sessionId,
-        overlapMs: selected.overlap.overlapMs,
-      };
+      press.status = "matched";
+      reciprocal.status = "matched";
+      const queue = queues.get(queueEntryId)!;
+      const partner = queues.get(press.targetQueueEntryId)!;
+      queue.activeMatchId = matchId;
+      partner.activeMatchId = matchId;
+      queue.queueStatus = "matched";
+      partner.queueStatus = "matched";
+
+      return { ok: true as const, matched: true as const, matchId };
+    },
+    pressCancel(queueEntryId: string, pressEventId: string) {
+      const press = presses.get(pressEventId);
+      if (!press || press.queueEntryId !== queueEntryId) {
+        return { ok: false as const };
+      }
+      if (press.status === "ready" || press.status === "matched") {
+        return { ok: true as const, preserved: true as const };
+      }
+      press.status = "cancelled";
+      const queue = queues.get(queueEntryId)!;
+      queue.queueStatus = "queued";
+      return { ok: true as const, preserved: false as const };
+    },
+    closeDemoMatch(queueEntryId: string) {
+      const match = getCurrentMatch(queueEntryId);
+      if (!match) return { ok: false as const };
+      match.status = "ended";
+
+      const queueA = queues.get(match.userAQueueEntryId)!;
+      const queueB = queues.get(match.userBQueueEntryId)!;
+      queueA.activeMatchId = undefined;
+      queueB.activeMatchId = undefined;
+      queueA.queueStatus = "queued";
+      queueB.queueStatus = "queued";
+
+      for (const press of presses.values()) {
+        if (press.focusWindowId === match.windowId && (press.status === "holding" || press.status === "ready")) {
+          press.status = "cancelled";
+        }
+      }
+
+      return { ok: true as const };
     },
     snapshot() {
       return {
-        queues: [...queues.values()],
-        presses: presses.map((p) => ({ ...p })),
-        matches: matches.map((m) => ({ ...m })),
-        sessions: sessions.map((s) => ({ ...s })),
+        queues: [...queues.values()].map((queue) => ({ ...queue })),
+        presses: [...presses.values()].map((press) => ({ ...press })),
+        matches: [...matches.values()].map((match) => ({ ...match })),
       };
     },
   };
 }
 
-describe("soul game overlap logic", () => {
-  it("clamps press end to max duration", () => {
-    const start = 1_000;
-    expect(clampPressEnd(start, start + 10_000, 6_000)).toBe(start + 6_000);
+describe("soul game center-target reciprocal matching", () => {
+  it("computes a stable focus target within the same 3-second window", () => {
+    const queues = [
+      { _id: "queue-a", joinedAt: 1000 },
+      { _id: "queue-b", joinedAt: 2000 },
+      { _id: "queue-c", joinedAt: 3000 },
+    ];
+
+    const firstWindowTarget = getSoulGameFocusTarget(queues, "queue-a", 6_100);
+    const sameWindowTarget = getSoulGameFocusTarget(queues, "queue-a", 8_900);
+    const nextWindowTarget = getSoulGameFocusTarget(queues, "queue-a", 9_100);
+
+    expect(firstWindowTarget?._id).toBe(sameWindowTarget?._id);
+    expect(nextWindowTarget?._id).not.toBe(firstWindowTarget?._id);
   });
 
-  it("computes overlap in milliseconds", () => {
-    expect(
-      getOverlapMs(
-        { start: 1_000, end: 2_000 },
-        { start: 1_500, end: 2_400 },
-      ),
-    ).toBe(500);
-  });
+  it("does not match when only one user reaches ready-state", () => {
+    const flow = createHarness();
+    flow.addQueue("queue-a", 1_000);
+    flow.addQueue("queue-b", 2_000);
 
-  it("matches when both holds are valid and overlap threshold is met", () => {
-    const result = shouldMatchPressIntervals(
-      { start: 1_000, end: 1_800 },
-      { start: 1_300, end: 2_100 },
-      {
-        MIN_HOLD_MS: 600,
-        MIN_OVERLAP_MS: 350,
-        MAX_PRESS_DURATION_MS: 6000,
-        QUEUE_STALE_AFTER_MS: 45_000,
-        SESSION_DURATION_MS: 120_000,
-        INTRO_DURATION_MS: 1_000,
-      },
-    );
-    expect(result.matched).toBe(true);
-    expect(result.overlap?.overlapMs).toBe(500);
-  });
+    const started = flow.pressStart("queue-a", 6_100);
+    expect(started.ok).toBe(true);
 
-  it("rejects short holds even when overlap exists", () => {
-    const result = shouldMatchPressIntervals(
-      { start: 1_000, end: 1_400 },
-      { start: 1_050, end: 1_800 },
-    );
-    expect(result.matched).toBe(false);
-    expect(result.reason).toBe("min_hold");
-  });
-
-  it("rejects when overlap is below threshold", () => {
-    const result = shouldMatchPressIntervals(
-      { start: 1_000, end: 1_800 },
-      { start: 1_500, end: 2_100 },
-      {
-        MIN_HOLD_MS: 600,
-        MIN_OVERLAP_MS: 400,
-        MAX_PRESS_DURATION_MS: 6000,
-        QUEUE_STALE_AFTER_MS: 45_000,
-        SESSION_DURATION_MS: 120_000,
-        INTRO_DURATION_MS: 1_000,
-      },
-    );
-    expect(result.matched).toBe(false);
-    expect(result.reason).toBe("overlap");
-  });
-
-  it("selects a valid candidate for match creation flow", () => {
-    const selected = selectSoulGameMatchCandidate({
-      currentQueueEntryId: "queue-a",
-      currentPressEventId: "press-a",
-      currentInterval: { start: 10_000, end: 12_500 },
-      currentDurationMs: 2_500,
-      candidates: [
-        {
-          queueEntryId: "queue-b",
-          pressEventId: "press-b",
-          interval: { start: 10_300, end: 12_700 },
-          durationMs: 2_400,
-          isQueueActive: true,
-          hasActiveMatch: false,
-          createdAt: 10_300,
-        },
-      ],
-    });
-
-    expect(selected).not.toBeNull();
-    expect(selected?.candidateQueueEntryId).toBe("queue-b");
-    expect(selected?.overlap.overlapMs).toBe(2200);
-  });
-
-  it("skips stale/already-matched/invalid candidates and picks next eligible one", () => {
-    const selected = selectSoulGameMatchCandidate({
-      currentQueueEntryId: "queue-a",
-      currentPressEventId: "press-a",
-      currentInterval: { start: 10_000, end: 12_600 },
-      currentDurationMs: 2_600,
-      candidates: [
-        {
-          queueEntryId: "queue-stale",
-          pressEventId: "press-stale",
-          interval: { start: 10_200, end: 12_300 },
-          durationMs: 2_100,
-          isQueueActive: false,
-          hasActiveMatch: false,
-          createdAt: 10_500,
-        },
-        {
-          queueEntryId: "queue-busy",
-          pressEventId: "press-busy",
-          interval: { start: 10_150, end: 12_650 },
-          durationMs: 2_500,
-          isQueueActive: true,
-          hasActiveMatch: true,
-          createdAt: 10_400,
-        },
-        {
-          queueEntryId: "queue-good",
-          pressEventId: "press-good",
-          interval: { start: 10_250, end: 12_800 },
-          durationMs: 2_550,
-          isQueueActive: true,
-          hasActiveMatch: false,
-          createdAt: 10_300,
-        },
-      ],
-    });
-
-    expect(selected?.candidateQueueEntryId).toBe("queue-good");
-    expect(selected?.candidatePressEventId).toBe("press-good");
-  });
-
-  it("prefers most recent eligible candidate when multiple are valid", () => {
-    const selected = selectSoulGameMatchCandidate({
-      currentQueueEntryId: "queue-a",
-      currentPressEventId: "press-a",
-      currentInterval: { start: 1_000, end: 3_500 },
-      currentDurationMs: 2_500,
-      candidates: [
-        {
-          queueEntryId: "queue-older",
-          pressEventId: "press-older",
-          interval: { start: 1_200, end: 3_600 },
-          durationMs: 2_400,
-          isQueueActive: true,
-          hasActiveMatch: false,
-          createdAt: 1_200,
-        },
-        {
-          queueEntryId: "queue-newer",
-          pressEventId: "press-newer",
-          interval: { start: 1_300, end: 3_700 },
-          durationMs: 2_400,
-          isQueueActive: true,
-          hasActiveMatch: false,
-          createdAt: 1_300,
-        },
-      ],
-    });
-
-    expect(selected?.candidateQueueEntryId).toBe("queue-newer");
-  });
-
-  it("pressStart + pressEnd transitions create match and active session when second user ends with overlap", () => {
-    const flow = createSoulGameFlowHarness();
-    flow.addQueue("queue-a");
-    flow.addQueue("queue-b");
-
-    const aStart = flow.pressStart("queue-a", 10_000);
-    const bStart = flow.pressStart("queue-b", 10_250);
-    expect(aStart.ok && bStart.ok).toBe(true);
-
-    const aEnd = flow.pressEnd("queue-a", aStart.ok ? aStart.pressEventId : "", 12_400);
-    expect(aEnd.ok).toBe(true);
-    expect(aEnd.matched).toBe(false);
-
-    const bEnd = flow.pressEnd("queue-b", bStart.ok ? bStart.pressEventId : "", 12_500);
-    expect(bEnd.ok).toBe(true);
-    expect(bEnd.matched).toBe(true);
-    expect(bEnd.overlapMs).toBeGreaterThanOrEqual(SOUL_GAME_CONFIG.MIN_OVERLAP_MS);
-
-    const snapshot = flow.snapshot();
-    expect(snapshot.matches).toHaveLength(1);
-    expect(snapshot.matches[0]?.status).toBe("active_2min");
-    expect(snapshot.sessions).toHaveLength(1);
-    expect(snapshot.sessions[0]?.status).toBe("active");
-    expect(snapshot.queues.every((q) => q.hasActiveMatch)).toBe(true);
-    expect(snapshot.presses.filter((p) => p.status === "matched")).toHaveLength(2);
-  });
-
-  it("pressEnd does not create session when overlap is missing or hold is too short", () => {
-    const flow = createSoulGameFlowHarness();
-    flow.addQueue("queue-a");
-    flow.addQueue("queue-b");
-
-    const aStart = flow.pressStart("queue-a", 1_000);
-    const bStart = flow.pressStart("queue-b", 2_000);
-    expect(aStart.ok && bStart.ok).toBe(true);
-
-    const shortEnd = flow.pressEnd("queue-a", aStart.ok ? aStart.pressEventId : "", 1_400);
-    expect(shortEnd.ok).toBe(true);
-    expect(shortEnd.matched).toBe(false);
-    expect(shortEnd.reason).toBe("min_hold");
-
-    const bEnd = flow.pressEnd("queue-b", bStart.ok ? bStart.pressEventId : "", 4_800);
-    expect(bEnd.ok).toBe(true);
-    expect(bEnd.matched).toBe(false);
+    const committed = flow.pressCommit("queue-a", started.ok ? started.pressEventId : "", 7_650);
+    expect(committed.ok).toBe(true);
+    expect(committed.matched).toBe(false);
 
     const snapshot = flow.snapshot();
     expect(snapshot.matches).toHaveLength(0);
-    expect(snapshot.sessions).toHaveLength(0);
+    expect(snapshot.presses[0]?.status).toBe("ready");
+  });
+
+  it("shows reciprocal hold visibility only when the target also points back", () => {
+    const flow = createHarness();
+    flow.addQueue("queue-a", 1_000);
+    flow.addQueue("queue-b", 2_000);
+    flow.addQueue("queue-c", 3_000);
+    flow.addQueue("queue-d", 4_000);
+
+    const aStart = flow.pressStart("queue-a", 6_100);
+    const cStart = flow.pressStart("queue-c", 6_100);
+    expect(aStart.ok && cStart.ok).toBe(true);
+    expect(flow.getPartnerHoldVisible("queue-a", 6_500)).toBe(false);
+  });
+
+  it("matches only when both users commit in the same focus window", () => {
+    const flow = createHarness();
+    flow.addQueue("queue-a", 1_000);
+    flow.addQueue("queue-b", 2_000);
+
+    const aStart = flow.pressStart("queue-a", 6_100);
+    const bStart = flow.pressStart("queue-b", 6_100);
+
+    const aCommit = flow.pressCommit("queue-a", aStart.ok ? aStart.pressEventId : "", 7_650);
+    const bCommit = flow.pressCommit("queue-b", bStart.ok ? bStart.pressEventId : "", 8_200);
+
+    expect(aCommit.matched).toBe(false);
+    expect(bCommit.matched).toBe(true);
+
+    const snapshot = flow.snapshot();
+    expect(snapshot.matches).toHaveLength(1);
+    expect(snapshot.matches[0]?.status).toBe("pending_intro");
+    expect(snapshot.queues.every((queue) => queue.queueStatus === "matched")).toBe(true);
+  });
+
+  it("cancels early release before 1.5 seconds and keeps early committed users latched", () => {
+    const flow = createHarness();
+    flow.addQueue("queue-a", 1_000);
+    flow.addQueue("queue-b", 2_000);
+
+    const cancelStart = flow.pressStart("queue-a", 6_100);
+    const cancelResult = flow.pressCancel("queue-a", cancelStart.ok ? cancelStart.pressEventId : "");
+    expect(cancelResult.ok).toBe(true);
+    expect(cancelResult.preserved).toBe(false);
+
+    const readyStart = flow.pressStart("queue-a", 6_250);
+    const readyCommit = flow.pressCommit("queue-a", readyStart.ok ? readyStart.pressEventId : "", 7_800);
+    expect(readyCommit.matched).toBe(false);
+
+    const releaseAfterReady = flow.pressCancel("queue-a", readyStart.ok ? readyStart.pressEventId : "");
+    expect(releaseAfterReady.preserved).toBe(true);
+
+    const snapshot = flow.snapshot();
+    expect(snapshot.presses.find((press) => press.id === readyStart.pressEventId)?.status).toBe("ready");
+  });
+
+  it("invalidates an unused ready-state after the window rotates", () => {
+    const flow = createHarness();
+    flow.addQueue("queue-a", 1_000);
+    flow.addQueue("queue-b", 2_000);
+
+    const started = flow.pressStart("queue-a", 6_100);
+    const committed = flow.pressCommit("queue-a", started.ok ? started.pressEventId : "", 7_650);
+    expect(committed.matched).toBe(false);
+
+    const nextWindowResult = flow.pressCommit("queue-a", started.ok ? started.pressEventId : "", 9_100);
+    expect(nextWindowResult.reason).toBe("focus_window_moved");
+  });
+
+  it("closeDemoMatch resets both users back to the carousel", () => {
+    const flow = createHarness();
+    flow.addQueue("queue-a", 1_000);
+    flow.addQueue("queue-b", 2_000);
+
+    const aStart = flow.pressStart("queue-a", 6_100);
+    const bStart = flow.pressStart("queue-b", 6_100);
+    flow.pressCommit("queue-a", aStart.ok ? aStart.pressEventId : "", 7_650);
+    flow.pressCommit("queue-b", bStart.ok ? bStart.pressEventId : "", 8_200);
+
+    const closed = flow.closeDemoMatch("queue-a");
+    expect(closed.ok).toBe(true);
+
+    const snapshot = flow.snapshot();
+    expect(snapshot.matches[0]?.status).toBe("ended");
+    expect(snapshot.queues.every((queue) => queue.queueStatus === "queued" && !queue.activeMatchId)).toBe(true);
+  });
+
+  it("allows a 1.5 second hold to complete within a 3 second window", () => {
+    const focusWindow = getSoulGameFocusWindow(6_100);
+    expect(canCommitHoldWithinWindow(focusWindow.startsAt + 500, focusWindow.endsAt)).toBe(true);
+    expect(canCommitHoldWithinWindow(focusWindow.startsAt + 1_700, focusWindow.endsAt)).toBe(false);
   });
 });
