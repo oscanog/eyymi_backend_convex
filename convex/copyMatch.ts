@@ -5,6 +5,7 @@ import { COPY_MATCH_CONFIG, clampPressEnd, getIntervalOverlap } from "./copyMatc
 
 type Gender = "male" | "female" | "gay" | "lesbian";
 type FilterMode = "preferred_only" | "all_genders";
+const ADMIN_DUMMY_DEPLOYMENT_KEY = "global";
 
 function getParticipantKey(args: {
   profileUserId?: string;
@@ -304,6 +305,11 @@ export const getClientState = query({
     const filterMode: FilterMode = args.filterMode ?? "preferred_only";
     let self = args.queueEntryId ? await ctx.db.get(args.queueEntryId) : null;
     if (self && !isQueueEntryActive(self, now)) self = null;
+    const dummyDeployment = await ctx.db
+      .query("adminDummyDeployments")
+      .withIndex("by_key", (q) => q.eq("key", ADMIN_DUMMY_DEPLOYMENT_KEY))
+      .first();
+    const copyVisibilityEnabled = dummyDeployment?.copyVisibilityEnabled ?? true;
 
     const allActive = await ctx.db
       .query("copyQueue")
@@ -311,7 +317,12 @@ export const getClientState = query({
       .collect();
     const activeEntries = allActive.filter((entry) => isQueueEntryActive(entry, now));
 
-    const candidatesBase = activeEntries.filter((entry) => !self || String(entry._id) !== String(self._id));
+    const candidatesBase = activeEntries.filter((entry) => {
+      if (self && String(entry._id) === String(self._id)) return false;
+      if (entry.activeMatchId) return false;
+      if (entry.isAdminDummy && !copyVisibilityEnabled) return false;
+      return true;
+    });
     const preferred = self?.preferredMatchGender;
     const filteredCandidates = candidatesBase.filter((entry) => {
       if (filterMode === "all_genders" || !preferred) return true;
@@ -446,4 +457,3 @@ export const cleanupLifecycle = internalMutation({
     return { staleQueue, expiredPresses, readyMatches };
   },
 });
-

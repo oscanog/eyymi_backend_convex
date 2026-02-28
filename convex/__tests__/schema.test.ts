@@ -19,14 +19,24 @@ describe("Schema Types", () => {
   });
 
   it("should have valid admin dummy deployment schema", () => {
-    const deploymentFields = ["key", "userIds", "startedAt", "expiresAt", "updatedAt"];
-    expect(deploymentFields.length).toBe(5);
+    const deploymentFields = [
+      "key",
+      "userIds",
+      "startedAt",
+      "expiresAt",
+      "updatedAt",
+      "copyVisibilityEnabled",
+    ];
+    expect(deploymentFields.length).toBe(6);
   });
 
   it("should have valid copy matchmaking schemas", () => {
     const copyQueueFields = [
       "participantKey",
       "profileUserId",
+      "linkedUserId",
+      "isAdminDummy",
+      "dummySlot",
       "username",
       "avatarId",
       "gender",
@@ -63,7 +73,7 @@ describe("Schema Types", () => {
       "createdAt",
       "readyAt",
     ];
-    expect(copyQueueFields.length).toBe(12);
+    expect(copyQueueFields.length).toBe(15);
     expect(copyPressFields.length).toBe(8);
     expect(copyMatchFields.length).toBe(13);
   });
@@ -107,6 +117,7 @@ describe("API Endpoints", () => {
       "users.updateMatchPreference",
       "admin.deployDummyUsers",
       "admin.getDummyUsersStatus",
+      "admin.setCopyDummyVisibility",
       "copyMatch.joinQueue",
       "copyMatch.heartbeat",
       "copyMatch.leaveQueue",
@@ -115,7 +126,7 @@ describe("API Endpoints", () => {
       "copyMatch.pressEnd",
       "copyMatch.getClientState",
     ];
-    expect(userEndpoints.length).toBe(15);
+    expect(userEndpoints.length).toBe(16);
   });
 
   it("should define canonical location session endpoints", () => {

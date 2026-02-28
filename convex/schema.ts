@@ -38,6 +38,7 @@ export default defineSchema({
     startedAt: v.number(),
     expiresAt: v.number(),
     updatedAt: v.number(),
+    copyVisibilityEnabled: v.optional(v.boolean()),
   }).index("by_key", ["key"]),
 
   locationSessions: defineTable({
@@ -220,6 +221,9 @@ export default defineSchema({
   copyQueue: defineTable({
     participantKey: v.string(),
     profileUserId: v.optional(v.id("users")),
+    linkedUserId: v.optional(v.id("users")),
+    isAdminDummy: v.optional(v.boolean()),
+    dummySlot: v.optional(v.number()),
     username: v.optional(v.string()),
     avatarId: v.optional(v.string()),
     gender: v.optional(
@@ -247,7 +251,9 @@ export default defineSchema({
   })
     .index("by_participantKey", ["participantKey"])
     .index("by_isActive_lastHeartbeatAt", ["isActive", "lastHeartbeatAt"])
-    .index("by_activeMatchId", ["activeMatchId"]),
+    .index("by_activeMatchId", ["activeMatchId"])
+    .index("by_linkedUserId", ["linkedUserId"])
+    .index("by_isAdminDummy_lastHeartbeatAt", ["isAdminDummy", "lastHeartbeatAt"]),
 
   copyPressEvents: defineTable({
     queueEntryId: v.id("copyQueue"),

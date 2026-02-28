@@ -6,6 +6,7 @@ import {
   buildDummyGender,
   buildDummyIdentity,
   isDummyDeploymentActive,
+  resolveCopyVisibilityEnabled,
 } from "../admin";
 
 describe("admin dummy deployment logic helpers", () => {
@@ -53,5 +54,12 @@ describe("admin dummy deployment logic helpers", () => {
     expect(isDummyDeploymentActive(now, now)).toBe(false);
     expect(isDummyDeploymentActive(now - 1, now)).toBe(false);
     expect(isDummyDeploymentActive(null, now)).toBe(false);
+  });
+
+  it("defaults copy visibility to enabled for legacy deployment rows", () => {
+    expect(resolveCopyVisibilityEnabled(undefined)).toBe(true);
+    expect(resolveCopyVisibilityEnabled(null)).toBe(true);
+    expect(resolveCopyVisibilityEnabled(true)).toBe(true);
+    expect(resolveCopyVisibilityEnabled(false)).toBe(false);
   });
 });
