@@ -6,7 +6,7 @@ import {
   buildDummyGender,
   buildDummyIdentity,
   isDummyDeploymentActive,
-  resolveCopyVisibilityEnabled,
+  resolveSoulGameVisibilityEnabled,
 } from "../admin";
 
 describe("admin dummy deployment logic helpers", () => {
@@ -41,11 +41,11 @@ describe("admin dummy deployment logic helpers", () => {
     expect(buildDummyGender(40)).toBe("gay");
   });
 
-  it("cycles dummy avatar ids through copy-ava-01..10", () => {
-    expect(buildDummyAvatarId(1)).toBe("copy-ava-01");
-    expect(buildDummyAvatarId(10)).toBe("copy-ava-10");
-    expect(buildDummyAvatarId(11)).toBe("copy-ava-01");
-    expect(buildDummyAvatarId(40)).toBe("copy-ava-10");
+  it("cycles dummy avatar ids through soul-ava-01..10", () => {
+    expect(buildDummyAvatarId(1)).toBe("soul-ava-01");
+    expect(buildDummyAvatarId(10)).toBe("soul-ava-10");
+    expect(buildDummyAvatarId(11)).toBe("soul-ava-01");
+    expect(buildDummyAvatarId(40)).toBe("soul-ava-10");
   });
 
   it("marks deployment active strictly before expiry", () => {
@@ -56,10 +56,10 @@ describe("admin dummy deployment logic helpers", () => {
     expect(isDummyDeploymentActive(null, now)).toBe(false);
   });
 
-  it("defaults copy visibility to enabled for legacy deployment rows", () => {
-    expect(resolveCopyVisibilityEnabled(undefined)).toBe(true);
-    expect(resolveCopyVisibilityEnabled(null)).toBe(true);
-    expect(resolveCopyVisibilityEnabled(true)).toBe(true);
-    expect(resolveCopyVisibilityEnabled(false)).toBe(false);
+  it("defaults soul game visibility to enabled for legacy deployment rows", () => {
+    expect(resolveSoulGameVisibilityEnabled(undefined)).toBe(true);
+    expect(resolveSoulGameVisibilityEnabled(null)).toBe(true);
+    expect(resolveSoulGameVisibilityEnabled(true)).toBe(true);
+    expect(resolveSoulGameVisibilityEnabled(false)).toBe(false);
   });
 });

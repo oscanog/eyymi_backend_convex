@@ -2,18 +2,18 @@ export interface SoulGameConfig {
   MIN_HOLD_MS: number;
   FOCUS_WINDOW_MS: number;
   MAX_PRESS_DURATION_MS: number;
+  QUEUE_HEARTBEAT_MS: number;
   QUEUE_STALE_AFTER_MS: number;
-  SESSION_DURATION_MS: number;
-  INTRO_DURATION_MS: number;
+  RING_PROGRESS_MS: number;
 }
 
 export const SOUL_GAME_CONFIG: SoulGameConfig = {
   MIN_HOLD_MS: 1_500,
   FOCUS_WINDOW_MS: 3_000,
   MAX_PRESS_DURATION_MS: 6_000,
+  QUEUE_HEARTBEAT_MS: 15_000,
   QUEUE_STALE_AFTER_MS: 45_000,
-  SESSION_DURATION_MS: 2 * 60 * 1000,
-  INTRO_DURATION_MS: 1_000,
+  RING_PROGRESS_MS: 1_500,
 } as const;
 
 export interface SoulGameFocusWindow {
@@ -52,10 +52,7 @@ export function sortSoulGameQueueEntries<T extends QueueLike>(entries: T[]) {
   return [...entries].sort(compareQueueEntries);
 }
 
-export function getSoulGameCandidateCycle<T extends QueueLike>(
-  entries: T[],
-  selfId: unknown,
-) {
+export function getSoulGameCandidateCycle<T extends QueueLike>(entries: T[], selfId: unknown) {
   return sortSoulGameQueueEntries(entries).filter((entry) => String(entry._id) !== String(selfId));
 }
 
@@ -82,7 +79,11 @@ export function clampPressEnd(
   return Math.min(end, start + maxDurationMs);
 }
 
-export function getHoldProgress(now: number, startAt: number, minHoldMs = SOUL_GAME_CONFIG.MIN_HOLD_MS) {
+export function getHoldProgress(
+  now: number,
+  startAt: number,
+  minHoldMs = SOUL_GAME_CONFIG.MIN_HOLD_MS,
+) {
   const progressMs = Math.max(0, now - startAt);
   return {
     progressMs,
@@ -97,3 +98,4 @@ export function canCommitHoldWithinWindow(
 ) {
   return pressStartedAt + minHoldMs <= windowEndsAt;
 }
+

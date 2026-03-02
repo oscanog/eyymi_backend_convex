@@ -25,13 +25,13 @@ describe("Schema Types", () => {
       "startedAt",
       "expiresAt",
       "updatedAt",
-      "copyVisibilityEnabled",
+      "soulGameVisibilityEnabled",
     ];
     expect(deploymentFields.length).toBe(6);
   });
 
-  it("should have valid copy matchmaking schemas", () => {
-    const copyQueueFields = [
+  it("should have valid soul game matchmaking schemas", () => {
+    const soulGameQueueFields = [
       "participantKey",
       "scopeKey",
       "profileUserId",
@@ -50,7 +50,7 @@ describe("Schema Types", () => {
       "lastHeartbeatAt",
       "lastPressAt",
     ];
-    const copyPressFields = [
+    const soulGamePressFields = [
       "queueEntryId",
       "participantKey",
       "scopeKey",
@@ -64,7 +64,7 @@ describe("Schema Types", () => {
       "matchId",
       "createdAt",
     ];
-    const copyMatchFields = [
+    const soulGameMatchFields = [
       "scopeKey",
       "userAQueueEntryId",
       "userBQueueEntryId",
@@ -81,9 +81,9 @@ describe("Schema Types", () => {
       "readyAt",
       "windowId",
     ];
-    expect(copyQueueFields.length).toBe(17);
-    expect(copyPressFields.length).toBe(12);
-    expect(copyMatchFields.length).toBe(15);
+    expect(soulGameQueueFields.length).toBe(17);
+    expect(soulGamePressFields.length).toBe(12);
+    expect(soulGameMatchFields.length).toBe(15);
   });
 
   it("should have valid location session schema", () => {
@@ -125,15 +125,15 @@ describe("API Endpoints", () => {
       "users.updateMatchPreference",
       "admin.deployDummyUsers",
       "admin.getDummyUsersStatus",
-      "admin.setCopyDummyVisibility",
-      "copyMatch.joinQueue",
-      "copyMatch.heartbeat",
-      "copyMatch.leaveQueue",
-      "copyMatch.pressStart",
-      "copyMatch.pressCommit",
-      "copyMatch.pressCancel",
-      "copyMatch.closeMatch",
-      "copyMatch.getClientState",
+      "admin.setSoulGameDummyVisibility",
+      "soulGame.joinQueue",
+      "soulGame.heartbeat",
+      "soulGame.leaveQueue",
+      "soulGame.pressStart",
+      "soulGame.pressCommit",
+      "soulGame.pressCancel",
+      "soulGame.closeMatch",
+      "soulGame.getClientState",
     ];
     expect(userEndpoints.length).toBe(17);
   });

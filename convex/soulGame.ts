@@ -2,18 +2,18 @@ import { v } from "convex/values";
 import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
-  COPY_MATCH_CONFIG,
+  SOUL_GAME_CONFIG,
   canCommitHoldWithinWindow,
   clampPressEnd,
-  getCopyFocusTarget,
-  getCopyFocusWindow,
+  getSoulGameFocusTarget,
+  getSoulGameFocusWindow,
   getHoldProgress,
-  sortCopyQueueEntries,
-} from "./copyMatchLogic";
+  sortSoulGameQueueEntries,
+} from "./soulGameLogic";
 
 type Gender = "male" | "female" | "gay" | "lesbian";
 type FilterMode = "preferred_only" | "all_genders";
-type CopyPressStatus = "holding" | "ready" | "matched" | "expired" | "cancelled";
+type SoulGamePressStatus = "holding" | "ready" | "matched" | "expired" | "cancelled";
 
 const ADMIN_DUMMY_DEPLOYMENT_KEY = "global";
 
@@ -37,18 +37,18 @@ function sameScope(entryScopeKey: string | undefined, scopeKey?: string | null) 
   return (entryScopeKey ?? null) === normalizeScopeKey(scopeKey);
 }
 
-function isQueueEntryActive(entry: Doc<"copyQueue">, now: number) {
-  return entry.isActive && entry.lastHeartbeatAt >= now - COPY_MATCH_CONFIG.QUEUE_STALE_AFTER_MS;
+function isQueueEntryActive(entry: Doc<"soulGameQueue">, now: number) {
+  return entry.isActive && entry.lastHeartbeatAt >= now - SOUL_GAME_CONFIG.QUEUE_STALE_AFTER_MS;
 }
 
-function toQueueStatus(entry: Doc<"copyQueue">) {
+function toQueueStatus(entry: Doc<"soulGameQueue">) {
   if (entry.activeMatchId) return "matched" as const;
   return entry.queueStatus === "matching" ? "matching" as const : "queued" as const;
 }
 
 function buildCandidatePool(
-  entries: Doc<"copyQueue">[],
-  self: Doc<"copyQueue"> | null,
+  entries: Doc<"soulGameQueue">[],
+  self: Doc<"soulGameQueue"> | null,
   filterMode: FilterMode,
 ) {
   const candidatesBase = entries.filter((entry) => {
@@ -77,24 +77,24 @@ async function getActiveQueueEntries(
   scopeKey?: string | null,
 ) {
   const activeEntries = await ctx.db
-    .query("copyQueue")
+    .query("soulGameQueue")
     .withIndex("by_isActive_lastHeartbeatAt", (q) => q.eq("isActive", true))
     .collect();
 
-  return sortCopyQueueEntries(
+  return sortSoulGameQueueEntries(
     activeEntries.filter((entry) => isQueueEntryActive(entry, now) && sameScope(entry.scopeKey, scopeKey)),
   );
 }
 
 async function getLatestPressByStatuses(
   ctx: Pick<QueryCtx, "db"> | Pick<MutationCtx, "db">,
-  queueEntryId: Id<"copyQueue">,
-  statuses: CopyPressStatus[],
+  queueEntryId: Id<"soulGameQueue">,
+  statuses: SoulGamePressStatus[],
 ) {
   const rows = await Promise.all(
     statuses.map((status) =>
       ctx.db
-        .query("copyPressEvents")
+        .query("soulGamePressEvents")
         .withIndex("by_queueEntry_status", (q: any) => q.eq("queueEntryId", queueEntryId).eq("status", status))
         .collect(),
     ),
@@ -102,12 +102,12 @@ async function getLatestPressByStatuses(
 
   return rows
     .flat()
-    .sort((a: Doc<"copyPressEvents">, b: Doc<"copyPressEvents">) => b.createdAt - a.createdAt)[0] ?? null;
+    .sort((a: Doc<"soulGamePressEvents">, b: Doc<"soulGamePressEvents">) => b.createdAt - a.createdAt)[0] ?? null;
 }
 
 async function getOpenMatch(
   ctx: Pick<QueryCtx, "db"> | Pick<MutationCtx, "db">,
-  matchId: Id<"copyMatches"> | null,
+  matchId: Id<"soulGameMatches"> | null,
 ) {
   if (!matchId) return null;
   const match = await ctx.db.get(matchId);
@@ -119,17 +119,17 @@ async function getOpenMatch(
 
 async function expireWindowPressesForQueueEntry(
   ctx: Pick<MutationCtx, "db">,
-  queueEntryId: Id<"copyQueue">,
+  queueEntryId: Id<"soulGameQueue">,
   focusWindowId: string,
-  preservePressId?: Id<"copyPressEvents">,
+  preservePressId?: Id<"soulGamePressEvents">,
 ) {
   const rows = await Promise.all([
     ctx.db
-      .query("copyPressEvents")
+      .query("soulGamePressEvents")
       .withIndex("by_queueEntry_status", (q) => q.eq("queueEntryId", queueEntryId).eq("status", "holding"))
       .collect(),
     ctx.db
-      .query("copyPressEvents")
+      .query("soulGamePressEvents")
       .withIndex("by_queueEntry_status", (q) => q.eq("queueEntryId", queueEntryId).eq("status", "ready"))
       .collect(),
   ]);
@@ -148,16 +148,16 @@ async function expireWindowPressesForQueueEntry(
 
 async function getExistingPairMatch(
   ctx: Pick<QueryCtx, "db"> | Pick<MutationCtx, "db">,
-  queueEntryId: Id<"copyQueue">,
-  targetQueueEntryId: Id<"copyQueue">,
+  queueEntryId: Id<"soulGameQueue">,
+  targetQueueEntryId: Id<"soulGameQueue">,
   focusWindowId: string,
 ) {
   const matchesA = await ctx.db
-    .query("copyMatches")
+    .query("soulGameMatches")
     .withIndex("by_userAQueueEntryId", (q: any) => q.eq("userAQueueEntryId", queueEntryId))
     .collect();
   const matchesB = await ctx.db
-    .query("copyMatches")
+    .query("soulGameMatches")
     .withIndex("by_userBQueueEntryId", (q: any) => q.eq("userBQueueEntryId", queueEntryId))
     .collect();
 
@@ -171,14 +171,14 @@ async function getExistingPairMatch(
 }
 
 function buildFocusState(
-  entries: Doc<"copyQueue">[],
-  self: Doc<"copyQueue">,
+  entries: Doc<"soulGameQueue">[],
+  self: Doc<"soulGameQueue">,
   filterMode: FilterMode,
   now: number,
 ) {
-  const focusWindow = getCopyFocusWindow(now);
+  const focusWindow = getSoulGameFocusWindow(now);
   const { filteredCandidates, hasCandidatesForPreferred } = buildCandidatePool(entries, self, filterMode);
-  const focusTarget = getCopyFocusTarget(filteredCandidates, self._id, now);
+  const focusTarget = getSoulGameFocusTarget(filteredCandidates, self._id, now);
   return {
     focusWindow,
     focusTarget,
@@ -189,7 +189,7 @@ function buildFocusState(
 
 async function buildSelfHoldView(
   ctx: Pick<QueryCtx, "db"> | Pick<MutationCtx, "db">,
-  queueEntryId: Id<"copyQueue">,
+  queueEntryId: Id<"soulGameQueue">,
   focusWindowId: string,
   now: number,
 ) {
@@ -200,7 +200,7 @@ async function buildSelfHoldView(
 
   const effectiveNow = current.readyAt ?? now;
   const progress = current.readyAt
-    ? { progressMs: COPY_MATCH_CONFIG.MIN_HOLD_MS, progressRatio: 1 }
+    ? { progressMs: SOUL_GAME_CONFIG.MIN_HOLD_MS, progressRatio: 1 }
     : getHoldProgress(Math.min(effectiveNow, now), current.pressStartedAt);
 
   return {
@@ -214,8 +214,8 @@ async function buildSelfHoldView(
 
 async function buildPartnerReciprocalHoldView(
   ctx: Pick<QueryCtx, "db"> | Pick<MutationCtx, "db">,
-  self: Doc<"copyQueue">,
-  focusTarget: Doc<"copyQueue"> | null,
+  self: Doc<"soulGameQueue">,
+  focusTarget: Doc<"soulGameQueue"> | null,
   focusWindowId: string,
   now: number,
 ) {
@@ -223,11 +223,11 @@ async function buildPartnerReciprocalHoldView(
 
   const rows = await Promise.all([
     ctx.db
-      .query("copyPressEvents")
+      .query("soulGamePressEvents")
       .withIndex("by_target_status", (q) => q.eq("targetQueueEntryId", self._id).eq("status", "holding"))
       .collect(),
     ctx.db
-      .query("copyPressEvents")
+      .query("soulGamePressEvents")
       .withIndex("by_target_status", (q) => q.eq("targetQueueEntryId", self._id).eq("status", "ready"))
       .collect(),
   ]);
@@ -246,7 +246,7 @@ async function buildPartnerReciprocalHoldView(
 
   const effectiveNow = partnerPress.readyAt ?? now;
   const progress = partnerPress.readyAt
-    ? { progressMs: COPY_MATCH_CONFIG.MIN_HOLD_MS, progressRatio: 1 }
+    ? { progressMs: SOUL_GAME_CONFIG.MIN_HOLD_MS, progressRatio: 1 }
     : getHoldProgress(Math.min(effectiveNow, now), partnerPress.pressStartedAt);
 
   return {
@@ -261,10 +261,10 @@ async function buildPartnerReciprocalHoldView(
 async function createMatchIfReady(params: {
   ctx: MutationCtx;
   now: number;
-  queue: Doc<"copyQueue">;
-  targetQueue: Doc<"copyQueue">;
-  selfPress: Doc<"copyPressEvents">;
-  partnerPress: Doc<"copyPressEvents">;
+  queue: Doc<"soulGameQueue">;
+  targetQueue: Doc<"soulGameQueue">;
+  selfPress: Doc<"soulGamePressEvents">;
+  partnerPress: Doc<"soulGamePressEvents">;
   focusWindowId: string;
   focusWindowStartsAt: number;
   focusWindowEndsAt: number;
@@ -286,7 +286,7 @@ async function createMatchIfReady(params: {
     return existingPairMatch;
   }
 
-  const matchId = await ctx.db.insert("copyMatches", {
+  const matchId = await ctx.db.insert("soulGameMatches", {
     scopeKey: queue.scopeKey,
     userAQueueEntryId: queue._id,
     userBQueueEntryId: targetQueue._id,
@@ -294,7 +294,7 @@ async function createMatchIfReady(params: {
     userBPressEventId: partnerPress._id,
     userAProgressStartAt: selfPress.pressStartedAt,
     userBProgressStartAt: partnerPress.pressStartedAt,
-    progressDurationMs: COPY_MATCH_CONFIG.MIN_HOLD_MS,
+    progressDurationMs: SOUL_GAME_CONFIG.MIN_HOLD_MS,
     matchWindowStart: focusWindowStartsAt,
     matchWindowEnd: focusWindowEndsAt,
     overlapMs: Math.max(
@@ -351,7 +351,7 @@ export const joinQueue = mutation({
     }
 
     const existing = await ctx.db
-      .query("copyQueue")
+      .query("soulGameQueue")
       .withIndex("by_participantKey", (q) => q.eq("participantKey", participantKey))
       .collect();
 
@@ -378,7 +378,7 @@ export const joinQueue = mutation({
       };
     }
 
-    const queueEntryId = await ctx.db.insert("copyQueue", {
+    const queueEntryId = await ctx.db.insert("soulGameQueue", {
       participantKey,
       scopeKey: scopeKey ?? undefined,
       profileUserId: args.profileUserId,
@@ -401,7 +401,7 @@ export const joinQueue = mutation({
 });
 
 export const heartbeat = mutation({
-  args: { queueEntryId: v.id("copyQueue") },
+  args: { queueEntryId: v.id("soulGameQueue") },
   handler: async (ctx, args) => {
     const now = Date.now();
     const entry = await ctx.db.get(args.queueEntryId);
@@ -416,7 +416,7 @@ export const heartbeat = mutation({
 });
 
 export const leaveQueue = mutation({
-  args: { queueEntryId: v.id("copyQueue") },
+  args: { queueEntryId: v.id("soulGameQueue") },
   handler: async (ctx, args) => {
     const entry = await ctx.db.get(args.queueEntryId);
     if (!entry) return { ok: true as const };
@@ -429,11 +429,11 @@ export const leaveQueue = mutation({
 
     const activePresses = await Promise.all([
       ctx.db
-        .query("copyPressEvents")
+        .query("soulGamePressEvents")
         .withIndex("by_queueEntry_status", (q) => q.eq("queueEntryId", args.queueEntryId).eq("status", "holding"))
         .collect(),
       ctx.db
-        .query("copyPressEvents")
+        .query("soulGamePressEvents")
         .withIndex("by_queueEntry_status", (q) => q.eq("queueEntryId", args.queueEntryId).eq("status", "ready"))
         .collect(),
     ]);
@@ -452,8 +452,8 @@ export const leaveQueue = mutation({
 
 export const pressStart = mutation({
   args: {
-    queueEntryId: v.id("copyQueue"),
-    targetQueueEntryId: v.id("copyQueue"),
+    queueEntryId: v.id("soulGameQueue"),
+    targetQueueEntryId: v.id("soulGameQueue"),
     focusWindowId: v.string(),
     filterMode: v.optional(v.union(v.literal("preferred_only"), v.literal("all_genders"))),
   },
@@ -500,7 +500,7 @@ export const pressStart = mutation({
       };
     }
 
-    const pressEventId = await ctx.db.insert("copyPressEvents", {
+    const pressEventId = await ctx.db.insert("soulGamePressEvents", {
       queueEntryId: args.queueEntryId,
       participantKey: queue.participantKey,
       scopeKey: queue.scopeKey,
@@ -531,9 +531,9 @@ export const pressStart = mutation({
 
 export const pressCommit = mutation({
   args: {
-    queueEntryId: v.id("copyQueue"),
-    pressEventId: v.id("copyPressEvents"),
-    targetQueueEntryId: v.id("copyQueue"),
+    queueEntryId: v.id("soulGameQueue"),
+    pressEventId: v.id("soulGamePressEvents"),
+    targetQueueEntryId: v.id("soulGameQueue"),
     focusWindowId: v.string(),
     filterMode: v.optional(v.union(v.literal("preferred_only"), v.literal("all_genders"))),
   },
@@ -583,9 +583,9 @@ export const pressCommit = mutation({
       return { ok: true as const, matched: false as const, reason: "window_expired" as const, serverNow: now };
     }
 
-    const readyAt = press.readyAt ?? Math.min(now, focusWindow.endsAt, press.pressStartedAt + COPY_MATCH_CONFIG.MIN_HOLD_MS);
+    const readyAt = press.readyAt ?? Math.min(now, focusWindow.endsAt, press.pressStartedAt + SOUL_GAME_CONFIG.MIN_HOLD_MS);
     const durationMs = Math.max(0, readyAt - press.pressStartedAt);
-    if (durationMs < COPY_MATCH_CONFIG.MIN_HOLD_MS) {
+    if (durationMs < SOUL_GAME_CONFIG.MIN_HOLD_MS) {
       return { ok: true as const, matched: false as const, reason: "min_hold" as const, durationMs, serverNow: now };
     }
 
@@ -609,7 +609,7 @@ export const pressCommit = mutation({
     }
 
     const reciprocalReadyPresses = await ctx.db
-      .query("copyPressEvents")
+      .query("soulGamePressEvents")
       .withIndex("by_target_status", (q) => q.eq("targetQueueEntryId", args.queueEntryId).eq("status", "ready"))
       .collect();
 
@@ -649,8 +649,8 @@ export const pressCommit = mutation({
 
 export const pressCancel = mutation({
   args: {
-    queueEntryId: v.id("copyQueue"),
-    pressEventId: v.id("copyPressEvents"),
+    queueEntryId: v.id("soulGameQueue"),
+    pressEventId: v.id("soulGamePressEvents"),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -687,8 +687,8 @@ export const pressCancel = mutation({
 
 export const closeMatch = mutation({
   args: {
-    queueEntryId: v.id("copyQueue"),
-    matchId: v.id("copyMatches"),
+    queueEntryId: v.id("soulGameQueue"),
+    matchId: v.id("soulGameMatches"),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -725,7 +725,7 @@ export const closeMatch = mutation({
 
 export const getClientState = query({
   args: {
-    queueEntryId: v.optional(v.id("copyQueue")),
+    queueEntryId: v.optional(v.id("soulGameQueue")),
     filterMode: v.optional(v.union(v.literal("preferred_only"), v.literal("all_genders"))),
     scopeKey: v.optional(v.string()),
   },
@@ -743,17 +743,17 @@ export const getClientState = query({
       .query("adminDummyDeployments")
       .withIndex("by_key", (q) => q.eq("key", ADMIN_DUMMY_DEPLOYMENT_KEY))
       .first();
-    const copyVisibilityEnabled = dummyDeployment?.copyVisibilityEnabled ?? true;
+    const soulGameVisibilityEnabled = dummyDeployment?.soulGameVisibilityEnabled ?? true;
 
     const activeEntries = await getActiveQueueEntries(ctx, now, effectiveScopeKey);
     const scopedEntries = activeEntries.filter((entry) => {
-      if (entry.isAdminDummy && !copyVisibilityEnabled) return false;
+      if (entry.isAdminDummy && !soulGameVisibilityEnabled) return false;
       return true;
     });
 
     const candidatePool = buildCandidatePool(scopedEntries, self, filterMode);
-    const focusWindow = self ? getCopyFocusWindow(now) : null;
-    const focusTarget = self ? getCopyFocusTarget(candidatePool.filteredCandidates, self._id, now) : null;
+    const focusWindow = self ? getSoulGameFocusWindow(now) : null;
+    const focusTarget = self ? getSoulGameFocusTarget(candidatePool.filteredCandidates, self._id, now) : null;
     const selfHold = self && focusWindow
       ? await buildSelfHoldView(ctx, self._id, focusWindow.id, now)
       : null;
@@ -762,7 +762,7 @@ export const getClientState = query({
       : null;
     const activeMatch = self ? await getOpenMatch(ctx, self.activeMatchId ?? null) : null;
 
-    let matchedUser: Doc<"copyQueue"> | null = null;
+    let matchedUser: Doc<"soulGameQueue"> | null = null;
     if (self && activeMatch) {
       const matchedQueueId =
         activeMatch.userAQueueEntryId === self._id
@@ -773,7 +773,7 @@ export const getClientState = query({
 
     return {
       serverNow: now,
-      config: COPY_MATCH_CONFIG,
+      config: SOUL_GAME_CONFIG,
       filterMode,
       self: self
         ? {
@@ -861,7 +861,7 @@ export const cleanupLifecycle = internalMutation({
     let expiredPresses = 0;
 
     const allActive = await ctx.db
-      .query("copyQueue")
+      .query("soulGameQueue")
       .withIndex("by_isActive_lastHeartbeatAt", (q) => q.eq("isActive", true))
       .collect();
     for (const entry of allActive) {
@@ -873,16 +873,16 @@ export const cleanupLifecycle = internalMutation({
     const candidateStatuses = ["holding", "ready"] as const;
     for (const status of candidateStatuses) {
       const presses = await ctx.db
-        .query("copyPressEvents")
+        .query("soulGamePressEvents")
         .withIndex("by_status_startedAt", (q) => q.eq("status", status))
         .collect();
 
       for (const press of presses) {
         const focusWindowId =
           press.focusWindowId ??
-          String(Math.floor(press.pressStartedAt / COPY_MATCH_CONFIG.FOCUS_WINDOW_MS) * COPY_MATCH_CONFIG.FOCUS_WINDOW_MS);
-        const windowEndsAt = Number(focusWindowId) + COPY_MATCH_CONFIG.FOCUS_WINDOW_MS;
-        const isExpired = now > windowEndsAt || now - press.pressStartedAt > COPY_MATCH_CONFIG.QUEUE_STALE_AFTER_MS;
+          String(Math.floor(press.pressStartedAt / SOUL_GAME_CONFIG.FOCUS_WINDOW_MS) * SOUL_GAME_CONFIG.FOCUS_WINDOW_MS);
+        const windowEndsAt = Number(focusWindowId) + SOUL_GAME_CONFIG.FOCUS_WINDOW_MS;
+        const isExpired = now > windowEndsAt || now - press.pressStartedAt > SOUL_GAME_CONFIG.QUEUE_STALE_AFTER_MS;
         if (!isExpired) continue;
 
         await ctx.db.patch(press._id, {

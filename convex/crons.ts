@@ -83,12 +83,12 @@ cron.interval(
 );
 
 /**
- * Keep /copy queue and pending matches healthy.
+ * Keep /soul_game queue and pending matches healthy.
  */
 cron.interval(
-  "cleanupCopyMatchLifecycle",
+  "cleanupSoulGameLifecycle",
   { minutes: 1 },
-  internalApi.copyMatch.cleanupLifecycle,
+  internalApi.soulGame.cleanupLifecycle,
   {}
 );
 

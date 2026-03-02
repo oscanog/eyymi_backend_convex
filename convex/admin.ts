@@ -7,7 +7,7 @@ export const DUMMY_COUNT = 40;
 export const DUMMY_DURATION_MS = 10 * 60 * 1000;
 const DUMMY_AVATAR_COUNT = 10;
 const DUMMY_GENDER_BUCKET_SIZE = 10;
-const DEFAULT_COPY_VISIBILITY_ENABLED = true;
+const DEFAULT_SOUL_GAME_VISIBILITY_ENABLED = true;
 
 export type DummyGender = "male" | "female" | "lesbian" | "gay";
 
@@ -37,15 +37,15 @@ export function buildDummyGender(slot: number): DummyGender {
 
 export function buildDummyAvatarId(slot: number): string {
   const avatarSlot = ((Math.max(slot, 1) - 1) % DUMMY_AVATAR_COUNT) + 1;
-  return `copy-ava-${padSlot(avatarSlot)}`;
+  return `soul-ava-${padSlot(avatarSlot)}`;
 }
 
 export function isDummyDeploymentActive(expiresAt: number | null | undefined, now: number): boolean {
   return typeof expiresAt === "number" && expiresAt > now;
 }
 
-export function resolveCopyVisibilityEnabled(value: boolean | null | undefined): boolean {
-  return value ?? DEFAULT_COPY_VISIBILITY_ENABLED;
+export function resolveSoulGameVisibilityEnabled(value: boolean | null | undefined): boolean {
+  return value ?? DEFAULT_SOUL_GAME_VISIBILITY_ENABLED;
 }
 
 type DummyStatusUser = {
@@ -59,17 +59,17 @@ type DummyStatusPayload = {
   startedAt: number | null;
   expiresAt: number | null;
   remainingMs: number;
-  copyVisibilityEnabled: boolean;
+  soulGameVisibilityEnabled: boolean;
   users: DummyStatusUser[];
 };
 
-function toInactivePayload(copyVisibilityEnabled: boolean): DummyStatusPayload {
+function toInactivePayload(soulGameVisibilityEnabled: boolean): DummyStatusPayload {
   return {
     isActive: false,
     startedAt: null,
     expiresAt: null,
     remainingMs: 0,
-    copyVisibilityEnabled,
+    soulGameVisibilityEnabled,
     users: [],
   };
 }
@@ -87,13 +87,13 @@ async function syncDummyMirrorQueueRows(args: {
   now: number;
 }) {
   const { ctx, deployment, now } = args;
-  const copyVisibilityEnabled = resolveCopyVisibilityEnabled(deployment?.copyVisibilityEnabled);
+  const soulGameVisibilityEnabled = resolveSoulGameVisibilityEnabled(deployment?.soulGameVisibilityEnabled);
   const deploymentIsActive = Boolean(deployment && isDummyDeploymentActive(deployment.expiresAt, now));
   const deployedUserIds = new Set((deployment?.userIds ?? []).map((userId) => String(userId)));
   let touched = 0;
 
   const mirroredRows = await ctx.db
-    .query("copyQueue")
+    .query("soulGameQueue")
     .withIndex("by_isAdminDummy_lastHeartbeatAt", (q: any) => q.eq("isAdminDummy", true))
     .collect();
 
@@ -103,7 +103,7 @@ async function syncDummyMirrorQueueRows(args: {
       !!linkedUserId &&
       deployedUserIds.has(linkedUserId) &&
       deploymentIsActive &&
-      copyVisibilityEnabled;
+      soulGameVisibilityEnabled;
 
     if (shouldStayActive) continue;
 
@@ -127,9 +127,9 @@ async function syncDummyMirrorQueueRows(args: {
     if (!user) continue;
 
     const slot = user.dummySlot ?? index + 1;
-    const shouldBeActive = deploymentIsActive && copyVisibilityEnabled;
+    const shouldBeActive = deploymentIsActive && soulGameVisibilityEnabled;
     const mirroredByLinkedUser = await ctx.db
-      .query("copyQueue")
+      .query("soulGameQueue")
       .withIndex("by_linkedUserId", (q: any) => q.eq("linkedUserId", user._id))
       .collect();
     const primaryRow = mirroredByLinkedUser.sort((a: any, b: any) => b.joinedAt - a.joinedAt)[0] ?? null;
@@ -169,7 +169,7 @@ async function syncDummyMirrorQueueRows(args: {
       await ctx.db.patch(primaryRow._id, queuePatch);
       touched++;
     } else {
-      await ctx.db.insert("copyQueue", {
+      await ctx.db.insert("soulGameQueue", {
         ...queuePatch,
         joinedAt: now,
       });
@@ -186,9 +186,9 @@ async function buildDummyStatusPayload(args: {
   now: number;
 }): Promise<DummyStatusPayload> {
   const { ctx, deployment, now } = args;
-  const copyVisibilityEnabled = resolveCopyVisibilityEnabled(deployment?.copyVisibilityEnabled);
+  const soulGameVisibilityEnabled = resolveSoulGameVisibilityEnabled(deployment?.soulGameVisibilityEnabled);
   if (!deployment || !isDummyDeploymentActive(deployment.expiresAt, now)) {
-    return toInactivePayload(copyVisibilityEnabled);
+    return toInactivePayload(soulGameVisibilityEnabled);
   }
 
   const fetchedUsers = await Promise.all(
@@ -213,7 +213,7 @@ async function buildDummyStatusPayload(args: {
     startedAt: deployment.startedAt,
     expiresAt: deployment.expiresAt,
     remainingMs: Math.max(0, deployment.expiresAt - now),
-    copyVisibilityEnabled,
+    soulGameVisibilityEnabled,
     users,
   };
 }
@@ -225,7 +225,7 @@ export const deployDummyUsers = mutation({
     startedAt: v.number(),
     expiresAt: v.number(),
     remainingMs: v.number(),
-    copyVisibilityEnabled: v.boolean(),
+    soulGameVisibilityEnabled: v.boolean(),
     users: v.array(
       v.object({
         slot: v.number(),
@@ -283,14 +283,14 @@ export const deployDummyUsers = mutation({
     }
 
     const deployment = await getDeployment(ctx);
-    const copyVisibilityEnabled = resolveCopyVisibilityEnabled(deployment?.copyVisibilityEnabled);
+    const soulGameVisibilityEnabled = resolveSoulGameVisibilityEnabled(deployment?.soulGameVisibilityEnabled);
     if (deployment) {
       await ctx.db.patch(deployment._id, {
         userIds,
         startedAt: now,
         expiresAt,
         updatedAt: now,
-        copyVisibilityEnabled,
+        soulGameVisibilityEnabled,
       });
     } else {
       await ctx.db.insert("adminDummyDeployments", {
@@ -299,7 +299,7 @@ export const deployDummyUsers = mutation({
         startedAt: now,
         expiresAt,
         updatedAt: now,
-        copyVisibilityEnabled,
+        soulGameVisibilityEnabled,
       });
     }
 
@@ -324,7 +324,7 @@ export const deployDummyUsers = mutation({
       startedAt: status.startedAt,
       expiresAt: status.expiresAt,
       remainingMs: status.remainingMs,
-      copyVisibilityEnabled: status.copyVisibilityEnabled,
+      soulGameVisibilityEnabled: status.soulGameVisibilityEnabled,
       users,
     };
   },
@@ -337,7 +337,7 @@ export const getDummyUsersStatus = query({
     startedAt: v.union(v.number(), v.null()),
     expiresAt: v.union(v.number(), v.null()),
     remainingMs: v.number(),
-    copyVisibilityEnabled: v.boolean(),
+    soulGameVisibilityEnabled: v.boolean(),
     users: v.array(
       v.object({
         slot: v.number(),
@@ -357,7 +357,7 @@ export const getDummyUsersStatus = query({
   },
 });
 
-export const setCopyDummyVisibility = mutation({
+export const setSoulGameDummyVisibility = mutation({
   args: {
     enabled: v.boolean(),
   },
@@ -366,7 +366,7 @@ export const setCopyDummyVisibility = mutation({
     startedAt: v.union(v.number(), v.null()),
     expiresAt: v.union(v.number(), v.null()),
     remainingMs: v.number(),
-    copyVisibilityEnabled: v.boolean(),
+    soulGameVisibilityEnabled: v.boolean(),
     users: v.array(
       v.object({
         slot: v.number(),
@@ -381,7 +381,7 @@ export const setCopyDummyVisibility = mutation({
 
     if (deployment) {
       await ctx.db.patch(deployment._id, {
-        copyVisibilityEnabled: args.enabled,
+        soulGameVisibilityEnabled: args.enabled,
         updatedAt: now,
       });
     } else {
@@ -391,7 +391,7 @@ export const setCopyDummyVisibility = mutation({
         startedAt: now,
         expiresAt: now,
         updatedAt: now,
-        copyVisibilityEnabled: args.enabled,
+        soulGameVisibilityEnabled: args.enabled,
       });
     }
 

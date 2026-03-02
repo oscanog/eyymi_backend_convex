@@ -11,8 +11,6 @@
 import type * as admin from "../admin.js";
 import type * as authOtp from "../authOtp.js";
 import type * as authSessions from "../authSessions.js";
-import type * as copyMatch from "../copyMatch.js";
-import type * as copyMatchLogic from "../copyMatchLogic.js";
 import type * as crons from "../crons.js";
 import type * as health from "../health.js";
 import type * as invites from "../invites.js";
@@ -21,11 +19,8 @@ import type * as locations from "../locations.js";
 import type * as meetingPlaces from "../meetingPlaces.js";
 import type * as routes from "../routes.js";
 import type * as sessions from "../sessions.js";
-import type * as soulGameChat from "../soulGameChat.js";
+import type * as soulGame from "../soulGame.js";
 import type * as soulGameLogic from "../soulGameLogic.js";
-import type * as soulGameMatch from "../soulGameMatch.js";
-import type * as soulGamePresence from "../soulGamePresence.js";
-import type * as soulGameSessions from "../soulGameSessions.js";
 import type * as users from "../users.js";
 
 import type {
@@ -38,8 +33,6 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   authOtp: typeof authOtp;
   authSessions: typeof authSessions;
-  copyMatch: typeof copyMatch;
-  copyMatchLogic: typeof copyMatchLogic;
   crons: typeof crons;
   health: typeof health;
   invites: typeof invites;
@@ -48,11 +41,8 @@ declare const fullApi: ApiFromModules<{
   meetingPlaces: typeof meetingPlaces;
   routes: typeof routes;
   sessions: typeof sessions;
-  soulGameChat: typeof soulGameChat;
+  soulGame: typeof soulGame;
   soulGameLogic: typeof soulGameLogic;
-  soulGameMatch: typeof soulGameMatch;
-  soulGamePresence: typeof soulGamePresence;
-  soulGameSessions: typeof soulGameSessions;
   users: typeof users;
 }>;
 

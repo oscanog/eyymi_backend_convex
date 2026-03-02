@@ -25,7 +25,7 @@ describe("users gender helpers", () => {
       now: 123,
       gender: "gay",
       preferredMatchGender: "female",
-      avatarId: "copy-ava-03",
+      avatarId: "soul-ava-03",
     });
 
     expect(payload).toMatchObject({
@@ -33,7 +33,7 @@ describe("users gender helpers", () => {
       usernameKey: "alex",
       gender: "gay",
       preferredMatchGender: "female",
-      avatarId: "copy-ava-03",
+      avatarId: "soul-ava-03",
       isOnline: true,
       lastSeen: 123,
     });
@@ -62,13 +62,13 @@ describe("users gender helpers", () => {
       username: "alex",
       usernameKey: "alex",
       now: 123,
-      avatarId: "copy-ava-08",
+      avatarId: "soul-ava-08",
     });
 
     expect(payload).toMatchObject({
       username: "alex",
       usernameKey: "alex",
-      avatarId: "copy-ava-08",
+      avatarId: "soul-ava-08",
       isOnline: true,
       lastSeen: 123,
     });
