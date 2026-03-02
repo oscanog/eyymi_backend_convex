@@ -68,6 +68,7 @@ Summary:
 
 - `docs/mobile-app-build-blueprint.md` - Complete build blueprint from idea to scale
 - `docs/color-schemes.md` - Final dual-theme color + typography token system
+- `docs/backend-current/README.md` - Current backend schema, Convex functions, scheduled jobs, routes reality check, and env reference
 
 ## Suggested Next Step
 
